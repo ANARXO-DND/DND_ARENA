@@ -16,27 +16,28 @@ button{cursor:pointer}button:hover:not(:disabled){border-color:var(--a)}button:d
 <button id="ready" title="Готов">✓</button><script>
 const ST=['Сила','Ловкость','Телосложение','Интеллект','Мудрость','Харизма'],mod=s=>Math.floor((s-10)/2),sg=n=>(n>=0?'+':'')+n;
 const STY={def:['Оборона','+1 КД в доспехе'],duel:['Дуэлянт','+2 урона: одноручное оружие, вторая рука без оружия'],gwf:['Большое оружие','Перебрасывать 1 и 2 на кости урона (двуручный хват)'],twf:['Два оружия','Мод. характеристики к урону доп. атаки']};
-const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);let me=-1,I,S=null,msg='',cs={name:'',base:[8,8,8,8,8,8],style:'duel',inv:{},eq:{main:'',off:'',armor:''}},mode='main',sent=false;
+const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);let me=-1,I,S=null,msg='',cs={race:'human',name:'',base:[8,8,8,8,8,8],style:'duel',inv:{},eq:{main:'',off:'',armor:''}},mode='main',sent=false;
 const $=id=>document.getElementById(id),send=o=>ws.send(JSON.stringify(o));
-ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.t==='init'){I=m;me=m.id;cs.name='Игрок'+(me+1);}
+ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.t==='init'){I=m;me=m.id;cs.name='Игрок'+(me+1);}else if(m.t==='reset'){sent=false;msg='';mode='main'}
  else if(m.t==='err'){msg=m.m;draw()}else if(m.t==='state'){const first=!S||S.phase!=='battle';S=m;if(m.phase!=='lobby'){msg=msg;drawBattle(first)}else draw()}};
-const used=()=>6,left=()=>27-cs.base.reduce((s,x)=>s+I.COST[x],0),coins=()=>150-Object.entries(cs.inv).reduce((s,[k,n])=>s+I.ITEMS[k].c*n,0),fin=i=>cs.base[i]+1;
+const used=()=>6,left=()=>27-cs.base.reduce((s,x)=>s+I.COST[x],0),coins=()=>150-Object.entries(cs.inv).reduce((s,[k,n])=>s+I.ITEMS[k].c*n,0),fin=i=>cs.base[i]+I.RACES[cs.race].st[i];
 function ac(){const M=cs.base.map((_,i)=>mod(fin(i))),a=I.ITEMS[cs.eq.armor];let v=10+M[1];if(a){v=a.base+(a.dex==='full'?M[1]:Math.min(M[1],a.dex));if(cs.style==='def')v++}if(cs.eq.off==='shield')v+=2;return v}
 function fixEq(){for(const k of['main','off','armor']){const id=cs.eq[k];if(id&&!((cs.inv[id]||0)>=(['main','off','armor'].filter(j=>cs.eq[j]===id).length)))cs.eq[k]=''}
  const m=I.ITEMS[cs.eq.main];if(m&&m.f.two)cs.eq.off='';const a=I.ITEMS[cs.eq.armor];if(a&&a.str&&fin(0)<a.str)cs.eq.armor=''}
-function stat(i,d){const v=cs.base[i]+d;if(v<8||v>15)return;cs.base[i]=v;if(left()<0)cs.base[i]-=d;fixEq();draw()}
+function setRace(k){cs.race=k;const b=I.RACES[k].st;cs.base=cs.base.map((v,i)=>Math.min(v,15-b[i]));fixEq();draw()}
+function stat(i,d){const v=cs.base[i]+d;if(v<8||fin(i)+d>15)return;cs.base[i]=v;if(left()<0)cs.base[i]-=d;fixEq();draw()}
 function buy(k,d){const n=(cs.inv[k]||0)+d;if(n<0||(d>0&&coins()<I.ITEMS[k].c))return;cs.inv[k]=n;fixEq();draw()}
 const opt=(v,t,s)=>`<option value="${v}" ${s?'selected':''}>${t}</option>`;
 function wdesc(w){return w.k==='w'?`${w.d[0]}d${w.d[1]} ${w.dt}${w.v?` (2 руки: 1d${w.v[1]})`:''} · ${[w.f.light&&'лёгкое',w.f.finesse&&'фехт.',w.f.thrown&&'метат.',w.f.two&&'двуруч.',w.f.reach&&'досяг. 10фт'].filter(Boolean).join(', ')}`:w.k==='a'?`КД ${w.base}${w.dex==='full'?' + Лов':w.dex?` + Лов (макс +${w.dex})`:''}${w.str?` · Сила ${w.str}`:''}`:`+${w.ac} КД`}
 function draw(){if(!I||(S&&S.phase!=='lobby'))return;$('bt').hidden=true;$('c').hidden=false;
  const n=S?S.players.filter(p=>p&&p.ready).length:0;$('ready').style.display=sent?'none':'block';
  if(sent){$('c').innerHTML=`<div class="box"><h2>Готово!</h2>Ожидание игроков: ${n}/4 готовы</div>`;return}
- const M=cs.base.map((_,i)=>mod(fin(i))),maxhp=10+M[2];
+ const M=cs.base.map((_,i)=>mod(fin(i))),maxhp=10+M[2]+(I.RACES[cs.race].hpPerLevel||0);
  const items=Object.entries(I.ITEMS).map(([k,w])=>{const bad=w.str&&fin(0)<w.str;return`<div class="row"><div><b>${w.n}</b> <span class="m">${w.c}м</span><div class="m">${wdesc(w)}</div></div><div><button ${(cs.inv[k]||0)?'':'disabled'} onclick="buy('${k}',-1)">−</button> ${cs.inv[k]||0} <button ${bad||coins()<w.c?'disabled':''} onclick="buy('${k}',1)">+</button></div></div>`}).join('');
  const own=(f)=>Object.keys(cs.inv).filter(k=>cs.inv[k]&&f(I.ITEMS[k]));
  const sel=(slot,list,extra)=>`<select onchange="cs.eq.${slot}=this.value;fixEq();draw()">${opt('','— пусто —',!cs.eq[slot])}${list.map(k=>opt(k,I.ITEMS[k].n,cs.eq[slot]===k)).join('')}</select>`;
- $('c').innerHTML=`<div><div class="box"><h2>Персонаж — Воин 1 ур., Человек</h2><input value="${cs.name}" maxlength=16 onchange="cs.name=this.value" style="width:100%;margin-bottom:8px">
- <div class="m">Очки: <b style="color:var(--a)">${left()}</b>/27 (человек +1 к каждой). Кость хитов d10, мастерство +2, спасброски: Сила, Телосложение</div>
+ $('c').innerHTML=`<div><div class="box"><h2>Персонаж — Воин 1 ур.</h2><select onchange="setRace(this.value)">${Object.entries(I.RACES).map(([k,r])=>opt(k,r.n,cs.race===k)).join('')}</select> <div class="m">${I.RACES[cs.race].desc}</div><input value="${cs.name}" maxlength=16 onchange="cs.name=this.value" style="width:100%;margin-bottom:8px">
+ <div class="m">Очки: <b style="color:var(--a)">${left()}</b>/27 (максимум 15 с учётом расы). Кость хитов d10, мастерство +2, спасброски: Сила, Телосложение</div>
  ${ST.map((s,i)=>`<div class="row"><span>${s}</span><span><button onclick="stat(${i},-1)">−</button> <b>${fin(i)}</b> <span class="m">(${sg(M[i])})</span> <button onclick="stat(${i},1)">+</button></span></div>`).join('')}
  <hr style="border-color:var(--b)">Хиты: <b>${maxhp}</b> · КД: <b>${ac()}</b> · Скорость: 6 клеток</div>
  <div class="box"><h2>Боевой стиль</h2>${Object.entries(STY).map(([k,[n,d]])=>`<label class="row" style="justify-content:flex-start"><input type="radio" name="s" ${cs.style===k?'checked':''} onchange="cs.style='${k}';draw()"><span><b>${n}</b><div class="m">${d}</div></span></label>`).join('')}</div></div>
@@ -60,15 +61,18 @@ function drawBattle(first){$('c').hidden=true;$('ready').style.display='none';$(
  const mine=cur&&cur.id===me&&S.phase==='battle',a=(t,l,dis)=>`<button ${mine&&!dis?'':'disabled'} onclick="send({t:'${t}'})">${l}</button>`;
  const own=Object.keys(mp.inv);const eqs=(slot,f)=>`<select ${mine?'':'disabled'} onchange="eq()" id="e_${slot}">${opt('','— пусто —',!mp.eq[slot])}${own.filter(k=>f(I.ITEMS[k])).map(k=>opt(k,I.ITEMS[k].n,mp.eq[slot]===k)).join('')}</select>`;
  const mainW=mp.eq.main&&I.ITEMS[mp.eq.main],twoMain=mainW&&mainW.f.two;
- $('side').innerHTML=`<h2>${S.phase==='over'?'Бой окончен':mine?'ВАШ ХОД':'Ходит: '+cur.name}</h2>
+ $('side').innerHTML=`${pendHtml()}<h2>${S.phase==='over'?'Бой окончен — возврат в меню…':mine?'ВАШ ХОД':'Ходит: '+cur.name}</h2>
  ${S.order.map(i=>{const p=S.players[i];return`<div class="box ${i===S.order[S.turn]?'cur':''}" style="padding:6px;margin-bottom:6px;opacity:${p.dead?.4:1}"><div class="row"><b style="color:${p.color}">● ${p.name}${i===me?' (вы)':''}</b><span class="m">ини ${p.init} · КД ${p.ac}</span></div><div class="hp"><i style="width:${100*p.hp/p.maxhp}%"></i></div><span class="m">${p.hp}/${p.maxhp}${p.dodge?' · уклонение':''}</span></div>`}).join('')}
- <div class="m">Перемещение: <b>${mp.mv}</b> · действие ${mp.act?'✔':'✘'} · бонус ${mp.bonus?'✔':'✘'} · Second Wind ${mp.sw}/2</div>
+ <div class="m">Перемещение: <b>${mp.mv}</b> · действие ${mp.act?'✔':'✘'} · бонус ${mp.bonus?'✔':'✘'} · реакция ${mp.react?'✔':'✘'} · Second Wind ${mp.sw}/2</div>
  <div>Клик по пустой клетке — идти. Клик по врагу — атака:</div>
  <div><button class="${mode==='main'?'cur':''}" onclick="mode='main';drawBattle()">Основная</button><button class="${mode==='off'?'cur':''}" onclick="mode='off';drawBattle()">Бонусная (2-е оружие)</button></div>
  <div>${a('dash','Рывок',!mp.act)}${a('disengage','Отход',!mp.act)}${a('dodge','Уклонение',!mp.act)}${a('secondwind','Second Wind',!mp.bonus||mp.sw<1)}${a('end','Конец хода')}</div>
  <div class="box" style="margin-top:8px"><h2>Экипировка</h2><div class="row">Правая ${eqs('main',w=>w.k==='w')}</div><div class="row">Левая ${twoMain?'<span class="m">занята</span>':eqs('off',w=>w.k==='s'||(w.k==='w'&&w.f.light))}</div><div class="m">Оружие — бесплатно, щит — действие.</div></div>
  <div class="err">${msg}</div><div id="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div>`;
  $('log').scrollTop=1e5;if(first){const sc=$('sc');sc.scrollLeft=mp.x*CELL-sc.clientWidth/2;sc.scrollTop=mp.y*CELL-sc.clientHeight/2}}
+function pendHtml(){if(!S.pend)return'';const m=S.players[S.pend.mover];
+ if(S.pend.reactor!==me)return`<div class="m">⏳ ${S.players[S.pend.reactor].name} решает, атаковать ли ${m.name}…</div>`;
+ return`<div style="position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9"><div class="box" style="text-align:center;font-size:16px"><h2>Совершить провоцированную атаку?</h2>${m.name} покидает вашу зону контроля<br><br><button style="font-size:28px;color:#3c9" onclick="send({t:'oa',yes:true})">✓</button> <button style="font-size:28px;color:#f55" onclick="send({t:'oa',yes:false})">✕</button></div></div>`}
 function eq(){msg='';send({t:'equip',main:$('e_main')?.value||'',off:$('e_off')?.value||''})}
 cv.onclick=e=>{if(!S||S.phase!=='battle')return;msg='';const r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/CELL),y=Math.floor((e.clientY-r.top)/CELL);
  const t=S.players.find(p=>p&&!p.dead&&p.x===x&&p.y===y);if(t){if(t.id!==me)send({t:'attack',target:t.id,which:mode})}else send({t:'move',x,y})};
