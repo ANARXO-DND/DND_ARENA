@@ -104,7 +104,10 @@ function handle(p,m){
  default:return}
  bc()}
 // ---------- HTTP + WS ----------
-const srv=http.createServer((q,s)=>{fs.readFile(path.join(__dirname,'public','index.html'),(e,d)=>{s.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});s.end(d)})});
+const PAGE=['public/index.html','index.html'].map(f=>path.join(__dirname,f)).find(f=>fs.existsSync(f));
+const srv=http.createServer((q,s)=>{
+ if(!PAGE){s.writeHead(500,{'Content-Type':'text/plain; charset=utf-8'});return s.end('index.html не найден: положите его в папку public/ рядом с server.js')}
+ fs.readFile(PAGE,(e,d)=>{s.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});s.end(d)})});
 const wss=new WebSocketServer({server:srv});
 wss.on('connection',ws=>{
  const id=players.findIndex(x=>!x);
