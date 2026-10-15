@@ -1,5 +1,5 @@
 const http=require('http'),fs=require('fs'),path=require('path'),{WebSocketServer}=require('ws');
-const N=90,SPEED=6,r=s=>1+Math.floor(Math.random()*s),mod=s=>Math.floor((s-10)/2);
+const N=30,SPEED=6,r=s=>1+Math.floor(Math.random()*s),mod=s=>Math.floor((s-10)/2);
 // ---------- ДАННЫЕ (единственный источник правил) ----------
 const W=(n,d,dt,f,c,v)=>({k:'w',n,d,dt,f,c,v});
 const A=(n,base,dex,c,str)=>({k:'a',n,base,dex,c,str});
@@ -16,8 +16,13 @@ const ITEMS={
  scale:A('Чешуйчатый доспех',14,2,50),
  chainmail:A('Тяжёлая кольчуга',16,0,75,13),
  shield:{k:'s',n:'Щит',ac:2,c:10},
- kit:{k:'k',n:'Комплект целителя',c:25,uses:10}};
-for(const k of ['dagger'])ITEMS[k].cat='simple';for(const k of ['shortsword','rapier','longsword','halberd','greatsword'])ITEMS[k].cat='martial';
+ kit:{k:'k',n:'Комплект целителя',c:25,uses:10},
+ shortbow:W('Короткий лук',[1,6],'колющий',{two:1,rng:16},25),
+ longbow:W('Длинный лук',[1,8],'колющий',{two:1,heavy:1,rng:30},50),
+ hcross:W('Тяжёлый арбалет',[1,10],'колющий',{two:1,heavy:1,rng:20},50),
+ oil:{k:'t',n:'Масло',c:1,c1:'#e8922a',c2:'#7a4a1e',desc:'Действие, бросок на 4 кл.: спасбросок Ловкости (СЛ 8 + Лов + мастерство). При провале цель в масле 10 ходов: первый урон огнём +5 огнём, масло сгорает. Тратится при броске.'},
+ acid:{k:'t',n:'Кислота',c:25,c1:'#6fd23a',c2:'#3b5a24',desc:'Действие, бросок на 4 кл.: спасбросок Ловкости (СЛ 8 + Лов + мастерство), при провале 2d6 кислотой, при успехе урона нет. Тратится при броске.'}};
+for(const k of ['dagger','shortbow'])ITEMS[k].cat='simple';for(const k of ['shortsword','rapier','longsword','halberd','greatsword','longbow','hcross'])ITEMS[k].cat='martial';
 for(const k of ['halfplate','scale','chainmail'])ITEMS[k].metal=1; // металлическая броня (Электрошок)
 const COST={8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9},STYLES=['def','duel','gwf','twf'];
 // ---------- КЛАСС (заготовка под другие классы) ----------
@@ -54,7 +59,7 @@ const d20=p=>{let v=r(20);if(RACES[p.race]?.lucky&&v===1)v=r(20);return v};
 // ---------- СОСТОЯНИЕ ----------
 const players=[null,null,null,null];let g={phase:'lobby',order:[],turn:0,log:[]};
 const sg=n=>(n>=0?'+':'')+n,J=JSON.stringify,log=s=>g.log.push(s);
-const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:p.cant,disg:p.disg,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
+const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:p.cant,disg:p.disg,oil:p.oil,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
 const bc=()=>{const m=J({t:'state',phase:g.phase,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
@@ -73,11 +78,11 @@ function eqOk(p,e){const cnt={};
 function wInfo(p,wh){const w=ITEMS[p.eq[wh]],M=p.st.map(mod);
  if(!w||w.k!=='w')return{n:'Кулак',dice:[0,0],m:M[0],two:false,reach:1,w:{}};
  const two=!!(w.f.two||(w.v&&wh==='main'&&!p.eq.off));
- return{n:w.n,dice:two&&w.v?w.v:w.d,m:w.f.finesse?Math.max(M[0],M[1]):M[0],two,reach:w.f.reach?2:1,w}}
+ return{n:w.n,dice:two&&w.v?w.v:w.d,m:w.f.rng?M[1]:w.f.finesse?Math.max(M[0],M[1]):M[0],two,reach:w.f.reach?2:1,rng:w.f.rng||0,w}}
 const dist=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
 const alive=()=>players.filter(p=>p&&p.ready&&!p.dead&&!p.down);
 function startTurn(p){for(const o of players)if(o){if(o.slow)o.slow=o.slow.filter(i=>i!==p.id);if(o.noheal)o.noheal=o.noheal.filter(i=>i!==p.id)} // эффекты заговоров кончаются с началом хода заклинателя
- p.mv=SPEED-(p.slow&&p.slow.length?2:0);p.act=p.bonus=true;p.atkd=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.shielded=false;log(`— Ход: ${p.name} —`)}
+ if(p.oil>0)p.oil--;p.mv=SPEED-(p.slow&&p.slow.length?2:0);p.act=p.bonus=true;p.atkd=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.shielded=false;log(`— Ход: ${p.name} —`)}
 function deathRoll(p){if(p.stable)return;const v=d20(p);
  if(v===1)p.dsD+=2;else if(v<10)p.dsD++;else if(v===20)p.dsL+=2;else p.dsL++;
  log(`✖ ${p.name}: спасбросок от смерти ${v} (жизнь ${Math.min(p.dsL,3)}/3, смерть ${Math.min(p.dsD,3)}/3)`);
@@ -87,10 +92,10 @@ function next(){if(g.phase!=='battle')return;if(alive().length<=1){g.phase='over
  do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q)}
 function resetGame(){if(g.phase!=='over')return;g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
-  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal'])delete p[k];
+  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil'])delete p[k];
   p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});bc()}
 function startBattle(){g.phase='battle';const used=new Set();
- for(const p of players){let x,y;do{x=37+r(16);y=37+r(16)}while(used.has(x+','+y));used.add(x+','+y);
+ for(const p of players){let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y));used.add(x+','+y);
   Object.assign(p,{x,y,init:d20(p)+mod(p.st[1])+p.initBonus,react:true,down:false})}
  g.order=players.map(p=>p.id).sort((a,b)=>players[b].init-players[a].init||players[b].st[1]-players[a].st[1]||a-b);
  g.turn=0;log('Бой начался! Инициатива: '+g.order.map(i=>`${players[i].name} ${players[i].init}`).join(', '));startTurn(players[g.order[0]])}
@@ -113,7 +118,8 @@ function save(t,ab,dc,adv){let a=d20(t);if(adv)a=Math.max(a,d20(t));const c=CLAS
 function endLaugh(p){const c=players[p.laugh.by];if(c&&c.conc&&c.conc.target===p.id)c.conc=null;p.laugh=null;p.incap=false}
 function endConc(c){if(!c.conc)return;const t=players[c.conc.target];if(t&&t.laugh&&t.laugh.by===c.id){t.laugh=null;t.incap=false}c.conc=null;log(`${c.name} теряет концентрацию`)}
 function endTurnFx(p){if(p.laugh){const s=save(p,4,p.laugh.dc);log(`${p.name}: спасбросок против Смеха в конце хода ${s.txt}${s.ok?' — смех прекращается':' — продолжает смеяться'}`);if(s.ok)endLaugh(p)}}
-function hurt(t,dm){if(dm>0)fx({kind:'dmg',x:t.x,y:t.y,n:dm}); // число урона над существом
+function hurt(t,dm,ty){if(ty==='огнём'&&t.oil>0&&dm>0){t.oil=0;dm+=5;log(`🔥 Масло на ${t.name} вспыхивает: +5 урона огнём`)}
+ if(dm>0)fx({kind:'dmg',x:t.x,y:t.y,n:dm}); // число урона над существом
  const ab=Math.min(t.thp||0,dm);t.thp=(t.thp||0)-ab;dm-=ab;
  if(t.down){t.dsD++;t.stable=false;t.dsL=0;log(`✖ ${t.name}: +1 к смерти (${t.dsD}/3)`);if(t.dsD>=3){t.dead=true;endConc(t);log(`☠ ${t.name} умирает`)}return}
  if(dm<=0)return;t.hp=Math.max(0,t.hp-dm);
@@ -143,16 +149,16 @@ function resolveOA(yes){const q=g.pend;if(!q)return;clearTimeout(q.timer);g.pend
  cont()}
 function attack(p,t,wh,after){const done=()=>{if(after)after()},i=wInfo(p,wh);
  if(!t||t.dead||t===p)throw Error('Неверная цель');
- const d=dist(p,t);if(d>i.reach)throw Error(`Цель вне досягаемости (${i.reach} кл.)`);
+ const d=dist(p,t);if(i.rng?d>i.rng*4:d>i.reach)throw Error(i.rng?`Цель вне дальности (${i.rng*4} кл.)`:`Цель вне досягаемости (${i.reach} кл.)`);
  const pen=i.reach>1&&d===2&&players.some(o=>o&&o!==p&&!o.dead&&dist(o,p)===1); // досягаемое оружие: враг вплотную → помеха по дальним целям
- const dis=!!(t.dodge||pen),adv=!!(t.down||t.prone);let a=d20(p),rr='';
+ const rw=!!i.rng,dis=!!(t.dodge||pen||(rw&&(t.prone||d<=1||d>i.rng||(i.w.f.heavy&&RACES[p.race]?.size==='Маленький')))),adv=!!(t.down||(t.prone&&!rw)); // дальнобойное: помеха по лежащим, вплотную, дальше нормы; тяжёлое — помеха малымlet a=d20(p),rr='';
  if(dis!==adv){const b=d20(p);rr=` (${dis?'помеха':'преимущество'} ${a}/${b}${pen&&!t.dodge?', рядом враг':''})`;a=dis?Math.min(a,b):Math.max(a,b)}
  const cl=CLASSES[p.cls||'fighter'],pb=(!i.w.k||cl.weapons.includes(i.w.cat))?cl.prof:0; // мод. характеристики добавляется всегда, мастерство — только при владении (и только к попаданию)
  const total=a+i.m+pb,eac=t.ac+(t.shielded?5:0),hit=a===20||(a!==1&&total>=eac),head=`${p.name} → ${t.name} (${i.n}): ${a}${sg(i.m)}${pb?'+'+pb:''}=${total} vs КД ${eac}${rr}`;
  const fin=sh=>{
   if(sh||!hit){log(head+(sh?' — Щит! промах':' — промах'));return done()}
   const crit=a===20,sides=i.dice[1],nd=i.dice[0]*(crit?2:1);
-  const roll=()=>{let s=0;for(let k=0;k<nd;k++){let x=r(sides);if(p.style==='gwf'&&i.two&&x<=2)x=r(sides);s+=x}return s};
+  const roll=()=>{let s=0;for(let k=0;k<nd;k++){let x=r(sides);if(p.style==='gwf'&&i.two&&!i.rng&&x<=2)x=r(sides);s+=x}return s};
   let d0=roll(),sv='';
   if(i.dice[0]&&p.feat==='savage'&&!p.savUsed&&g.order[g.turn]===p.id){const o=roll();p.savUsed=true;sv=` [Свирепый: ${d0}/${o}]`;d0=Math.max(d0,o)}
   if(!i.dice[0])d0=1;
@@ -183,7 +189,7 @@ function handle(p,m){
  if(g.phase==='battle'&&g.pend)throw Error('Ждём ответ на провоцированную атаку');
  if(g.phase!=='battle'||players[g.order[g.turn]]!==p)throw Error('Не ваш ход');
  const need=(k)=>{if(!p[k])throw Error(k==='act'?'Действие уже потрачено':'Бонусное действие потрачено')};
-if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip'].includes(m.t))throw Error('Вы недееспособны');
+if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw'].includes(m.t))throw Error('Вы недееспособны');
  switch(m.t){
  case'move':{const x=m.x,y=m.y;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Вне поля');
   if(occ(p,x,y))throw Error('Клетка занята');const path=bfs(p,x,y);if(!path)throw Error('Нет пути: далеко или заблокировано');p.path=path;p.waive=null;walk(p);break}
@@ -192,6 +198,13 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   else{need('bonus');if(!p.atkd)throw Error('Сначала совершите атаку');
    if(!ITEMS[p.eq.main]?.f?.light||!ITEMS[p.eq.off]?.f?.light)throw Error('Нужно два лёгких оружия');
    attack(p,players[m.target],'off');p.bonus=false}break}
+ case'throw':{need('act');const k=m.item,it=ITEMS[k];if(!it||it.k!=='t'||!(p.inv[k]>0))throw Error('Нет такого предмета');
+  const t=players[m.target];if(!t||!t.ready||t.dead||t===p||dist(p,t)>4)throw Error('Цель вне дальности (4 кл.)');
+  p.inv[k]--;p.act=false;fx({kind:'lob',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},c1:it.c1,c2:it.c2});fx({kind:'ring',x:t.x,y:t.y,color:it.c1,delay:600});
+  const s=save(t,1,8+mod(p.st[1])+CLASSES[p.cls].prof);
+  if(k==='oil'){log(`${p.name} бросает масло в ${t.name}: Ловкость ${s.txt}${s.ok?' — увернулся':' — покрыт маслом на 10 ходов'}`);if(!s.ok)t.oil=10}
+  else{const d=r(6)+r(6);log(`${p.name} бросает кислоту в ${t.name}: Ловкость ${s.txt}${s.ok?' — уклонился, урона нет':` — провал, ${d} кислотой`}`);if(!s.ok)hurt(t,d,'кислотой')}
+  if(alive().length<=1)next();break}
  case'dash':need('act');p.act=false;p.mv+=SPEED-(p.slow&&p.slow.length?2:0);log(`${p.name}: Рывок`);break;
  case'disengage':need('act');p.act=false;p.dis=true;log(`${p.name}: Отход`);break;
  case'dodge':need('act');p.act=false;p.dodge=true;log(`${p.name}: Уклонение`);break;
@@ -223,7 +236,7 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   const tgt=(rng,self)=>{const t=players[m.target];if(!t||!t.ready||t.dead||(!self&&t===p)||dist(p,t)>rng)throw Error(`Цель вне дальности (${rng} кл.)`);return t};
   if(cn&&cn.atk){const t=tgt(cn.rng);use();fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});
    spAtk(p,t,cn.n,k==='shockinggrasp'&&!!ITEMS[t.eq.armor]?.metal,(h,cr)=>{let d=0;for(let i=0;i<(cr?2:1);i++)d+=r(cn.die);
-    log(`${h} — ${cr?'КРИТ! ':'попал, '}${d} ${cn.dt}`);hurt(t,d);
+    log(`${h} — ${cr?'КРИТ! ':'попал, '}${d} ${cn.dt}`);hurt(t,d,cn.dt);
     if(k==='rayoffrost'){(t.slow=t.slow||[]).push(p.id);log(`  ${t.name}: скорость −2 кл. до начала хода ${p.name}`)}
     if(k==='shockinggrasp'){t.react=false;log(`  ${t.name} не может совершать реакции до начала своего хода`)}
     if(k==='chilltouch'){(t.noheal=t.noheal||[]).push(p.id);log(`  ${t.name} не восстанавливает хиты до начала хода ${p.name}`)}
@@ -233,9 +246,11 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
    if(ts.length===2&&dist(ts[0],ts[1])>1)throw Error('Две цели должны стоять на соседних клетках');
    use();const dmg=r(6);log(`${p.name} — Кислотный всплеск`);
    ts.forEach(t=>{fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});const s=save(t,1,dc);log(`  ${t.name}: Ловкость ${s.txt} — ${s.ok?'успех':`провал, ${dmg} кислотой`}`);if(!s.ok)hurt(t,dmg)});chk();break}
-  if(k==='swordburst'){use();fx({kind:'swords',x:p.x,y:p.y});log(`${p.name} — Вспышка мечей`);const dmg=r(6);
-   players.filter(t=>t&&t.ready&&!t.dead&&t!==p&&dist(p,t)<=1).forEach(t=>{const s=save(t,1,dc);log(`  ${t.name}: Ловкость ${s.txt} — ${s.ok?'успех':`провал, ${dmg} силовым`}`);if(!s.ok)hurt(t,dmg)});chk();break}
-  if(k==='disguise'){const tk=m.tok;if(!['dwarf','human','halfling','wiz'].includes(tk))throw Error('Выберите токен');use();p.disg=tk;fx({kind:'ring',x:p.x,y:p.y,color:'#d9a6ff'});log(`${p.name} — Маскировка`);break}
+  if(k==='swordburst'){const ids=m.targets;if(!Array.isArray(ids)||!ids.length||ids.some(i=>!Number.isInteger(i))||new Set(ids).size!==ids.length)throw Error('Выберите существ рядом с собой');
+   const ts=ids.map(i=>{const t=players[i];if(!t||!t.ready||t.dead||t===p||dist(p,t)>1)throw Error('Цель должна быть рядом (1 кл.)');return t});
+   use();fx({kind:'swords',x:p.x,y:p.y});log(`${p.name} — Вспышка мечей`);const dmg=r(6);
+   ts.forEach(t=>{const s=save(t,1,dc);log(`  ${t.name}: Ловкость ${s.txt} — ${s.ok?'успех':`провал, ${dmg} силовым`}`);if(!s.ok)hurt(t,dmg)});chk();break}
+  if(k==='disguise'){const tk=m.tok;if(!['dwarf','human','halfling'].includes(tk))throw Error('Выберите токен');use();p.disg=tk;fx({kind:'ring',x:p.x,y:p.y,color:'#d9a6ff'});log(`${p.name} — Маскировка`);break}
   if(k==='magicmissile'){const ids=m.targets;if(!Array.isArray(ids)||ids.length!==3)throw Error('Нужно 3 стрелы');const cnt=new Map();
    ids.forEach(id=>{const t=players[id];if(!t||!t.ready||t.dead||t===p||dist(p,t)>24)throw Error('Цель вне дальности (24 кл.)');cnt.set(id,(cnt.get(id)||0)+1)});
    use();ids.forEach((id,i)=>fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:players[id].x,y:players[id].y},delay:i*130}));
