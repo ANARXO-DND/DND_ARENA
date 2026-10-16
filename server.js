@@ -33,7 +33,11 @@ const LEVEL=1,IDLE=5*60*1000,E8=[8,8,8,8,8,8];
 const RACES={
  human:{n:'Человек',start:[9,9,9,9,9,9],size:'Средний',desc:'Все характеристики +1 (старт с 9)'},
  halfling:{n:'Полурослик',start:E8,size:'Маленький',lucky:true,pass:true,desc:'Маленький. Выпавшая 1 на d20 перебрасывается. Проходит сквозь врагов, но не может остановиться в их клетке'},
- dwarf:{n:'Дворф',start:E8,size:'Средний',hpPerLevel:1,poisonRes:true,desc:'+1 хит за уровень. Сопротивление яду (пока не используется)'}};
+ dwarf:{n:'Дворф',start:E8,size:'Средний',hpPerLevel:1,poisonRes:true,desc:'+1 хит за уровень. Сопротивление яду (пока не используется)'},
+ elf:{n:'Эльф',start:E8,size:'Средний',charmAdv:true,desc:'Средний размер, скорость 6 клеток. Преимущество на спасброски против очарования (пока не используется). Нужно выбрать подрасу.',subs:{
+  high:{n:'Высший эльф',desc:'+1 заговор из списка волшебника (любой класс), колдуется Интеллектом'},
+  dark:{n:'Тёмный эльф',desc:'Заклинательная характеристика на выбор: Харизма, Мудрость или Интеллект. Влияет на СЛ спасбросков, атаки заклинаниями и прочее, даже если класс использует другую'},
+  wood:{n:'Лесной эльф',desc:'Скорость 35 фт (7 клеток), рывок даёт ещё 7 клеток (70 фт)'}}}};
 const FEATS={
  tough:{n:'Крепкий (Tough)',ab:2,hpPerLevel:2,desc:'+1 Телосложение (сверх лимита). +2 хита за уровень'},
  savage:{n:'Свирепый атакующий (Savage Attacker)',ab:0,desc:'+1 Сила (сверх лимита). Раз за ход при попадании оружием кости урона бросаются дважды, берётся лучший результат'},
@@ -45,8 +49,9 @@ const SPELLS={
  tasha:{n:'Смех Таши',desc:'Концентрация. Цель в 6 кл.: спасбросок Мудрости; при провале ничком и недееспособна, повтор в конце хода и при уроне (с преимуществом).'},
  thunderwave:{n:'Волна грома',desc:'Волна вокруг вас: все существа в радиусе 1 клетки (в т.ч. по диагонали), направление не выбирается. Спасбросок Телосложения, 2d8 звука и отталкивание на 2 кл. от вас; при успехе половина урона.'},
  falselife:{n:'Псевдожизнь',desc:'Вы получаете 1d4+4 временных хитов.'},
- curewounds:{n:'Лечение ран',desc:'Касание (1 кл.): восстанавливает 1d8 + мод. Интеллекта.'},
- disguise:{n:'Маскировка',desc:'На себя. Выберите любой токен (воины и маги) или вернитесь к своему — меняется только токен, его видят все. Действует, пока не примените снова.'}};
+ curewounds:{n:'Лечение ран',desc:'Касание (1 кл.): восстанавливает 1d8 + мод. заклинательной характеристики.'},
+ disguise:{n:'Маскировка',desc:'На себя. Выберите любой токен (воины и маги) или вернитесь к своему — меняется только токен, его видят все. Действует, пока не примените снова.'},
+ witchbolt:{n:'Ведьмин снаряд',desc:'Концентрация, 12 кл. Дальняя атака заклинанием: 2d12 электричеством. В каждый следующий ваш ход бонусным действием 1d12 цели автоматически (даже после промаха). Прерывается, если цель дальше 12 клеток.'}};
 // Заговоры: 0 круг, без ячеек, можно колдовать бесконечно. Атака: d20 + мастерство + Инт; СЛ = 8 + мастерство + Инт
 const CANTRIPS={
  firebolt:{n:'Огненный снаряд',rng:24,die:10,dt:'огнём',atk:1,col:'#ff8a3a',desc:'Дальняя атака заклинанием, 24 кл.: 1d10 огнём.'},
@@ -55,13 +60,14 @@ const CANTRIPS={
  acidsplash:{n:'Кислотный всплеск',rng:12,die:6,dt:'кислотой',col:'#9be34a',desc:'12 кл.: одна цель или две на соседних клетках; спасбросок Ловкости, при провале 1d6 кислотой.'},
  chilltouch:{n:'Леденящее прикосновение',rng:24,die:10,dt:'некротической энергией',atk:1,col:'#9a7bd1',desc:'Дальняя атака, 24 кл.: 1d10 некротической; цель не восстанавливает хиты до начала вашего следующего хода.'},
  swordburst:{n:'Вспышка мечей',rng:1,die:6,dt:'силовым полем',desc:'Вокруг вас (радиус 1 кл.): спасбросок Ловкости, при провале 1d6 силовым полем.'}};
-const TOKENS=['human','dwarf','halfling','w_human','w_dwarf','w_halfling']; // воины и маги, доступны для Маскировки
+const TOKENS=['human','dwarf','elf','halfling','w_human','w_dwarf','w_elf','w_halfling']; // воины и маги, доступны для Маскировки
+const spd=p=>p.sub==='wood'?7:SPEED,sab=p=>p.sab!=null?p.sab:(CLASSES[p.cls].castStat??3); // скорость (лесной эльф 35 фт) и заклинательная характеристика
 const d20=p=>{let v=r(20);if(RACES[p.race]?.lucky&&v===1)v=r(20);return v};
 // ---------- СОСТОЯНИЕ ----------
 const players=[null,null,null,null];let g={phase:'lobby',order:[],turn:0,log:[]};
 const sg=n=>(n>=0?'+':'')+n,J=JSON.stringify,log=s=>g.log.push(s);
-const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:p.cant,disg:p.disg,oil:p.oil,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
-const bc=()=>{const m=J({t:'state',phase:g.phase,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
+const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:p.cant,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
+const bc=()=>{chkWB();const m=J({t:'state',phase:g.phase,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
 function derive(p){const M=p.st.map(mod),a=ITEMS[p.eq.armor];let ac=10+M[1];
@@ -83,7 +89,7 @@ function wInfo(p,wh){const w=ITEMS[p.eq[wh]],M=p.st.map(mod);
 const dist=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
 const alive=()=>players.filter(p=>p&&p.ready&&!p.dead&&!p.down);
 function startTurn(p){for(const o of players)if(o){if(o.slow)o.slow=o.slow.filter(i=>i!==p.id);if(o.noheal)o.noheal=o.noheal.filter(i=>i!==p.id)} // эффекты заговоров кончаются с началом хода заклинателя
- if(p.oil>0)p.oil--;p.mv=SPEED-(p.slow&&p.slow.length?2:0);p.act=p.bonus=true;p.atkd=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.shielded=false;log(`— Ход: ${p.name} —`)}
+ if(p.oil>0)p.oil--;p.mv=spd(p)-(p.slow&&p.slow.length?2:0);p.act=p.bonus=true;p.atkd=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.wbOk=true;p.shielded=false;log(`— Ход: ${p.name} —`)}
 function deathRoll(p){if(p.stable)return;const v=d20(p);
  if(v===1)p.dsD+=2;else if(v<10)p.dsD++;else if(v===20)p.dsL+=2;else p.dsL++;
  log(`✖ ${p.name}: спасбросок от смерти ${v} (жизнь ${Math.min(p.dsL,3)}/3, смерть ${Math.min(p.dsD,3)}/3)`);
@@ -93,7 +99,7 @@ function next(){if(g.phase!=='battle')return;if(alive().length<=1){g.phase='over
  do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q)}
 function resetGame(){if(g.phase!=='over')return;g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
-  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil'])delete p[k];
+  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil'])delete p[k];
   p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});bc()}
 function startBattle(){g.phase='battle';const used=new Set();
  for(const p of players){let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y));used.add(x+','+y);
@@ -117,6 +123,8 @@ function walk(p){while(p.path&&p.path.length){const c=p.path[0],prev={x:p.x,y:p.
  p.path=[]}
 function save(t,ab,dc,adv){let a=d20(t);if(adv)a=Math.max(a,d20(t));const c=CLASSES[t.cls||'fighter'],mm=mod(t.st[ab]),pf=c.saves.includes(ab)?c.prof:0,tot=a+mm+pf;return{ok:tot>=dc,txt:`${a}${sg(mm)}${pf?'+'+pf:''}=${tot} vs ${dc}`}}
 function endLaugh(p){const c=players[p.laugh.by];if(c&&c.conc&&c.conc.target===p.id)c.conc=null;p.laugh=null;p.incap=false}
+function chkWB(){for(const c of players){if(!c||!c.conc||c.conc.spell!=='witchbolt')continue;if(c.dead||c.down){endConc(c);continue}
+ const t=players[c.conc.target];if(!t||t.dead){log(`Ведьмин снаряд ${c.name} прерван: цель выбыла`);endConc(c)}else if(dist(c,t)>12){log(`Ведьмин снаряд ${c.name} прерван: цель дальше 12 клеток`);endConc(c)}}}
 function endConc(c){if(!c.conc)return;const t=players[c.conc.target];if(t&&t.laugh&&t.laugh.by===c.id){t.laugh=null;t.incap=false}c.conc=null;log(`${c.name} теряет концентрацию`)}
 function endTurnFx(p){if(p.laugh){const s=save(p,4,p.laugh.dc);log(`${p.name}: спасбросок против Смеха в конце хода ${s.txt}${s.ok?' — смех прекращается':' — продолжает смеяться'}`);if(s.ok)endLaugh(p)}}
 function hurt(t,dm,ty){if(ty==='огнём'&&t.oil>0&&dm>0){t.oil=0;dm+=5;log(`🔥 Масло на ${t.name} вспыхивает: +5 урона огнём`)}
@@ -128,14 +136,14 @@ function hurt(t,dm,ty){if(ty==='огнём'&&t.oil>0&&dm>0){t.oil=0;dm+=5;log(`�
  if(t.laugh){const s=save(t,4,t.laugh.dc,true);log(`${t.name}: спасбросок против Смеха при уроне ${s.txt}${s.ok?' — смех прекращается':''}`);if(s.ok)endLaugh(t)}
  if(t.conc){const s=save(t,2,Math.max(10,Math.floor(dm/2)));log(`${t.name}: концентрация ${s.txt}${s.ok?' — держит':''}`);if(!s.ok)endConc(t)}}
 const nh=t=>!!(t.noheal&&t.noheal.length);
-const canCast=p=>p&&p.cls==='wizard'&&!p.dead&&!p.down&&!p.incap&&!['main','off'].some(h=>ITEMS[p.eq[h]]?.cat==='martial');
+const canCast=p=>p&&!p.dead&&!p.down&&!p.incap&&(p.cls==='wizard'?!['main','off'].some(h=>ITEMS[p.eq[h]]?.cat==='martial'):(p.cant||[]).length>0); // воин колдует только заговором эльфа, у волшебника — запрет воинского оружия
 const canShield=t=>canCast(t)&&t.react&&t.slots>0&&(t.prep||[]).includes('shield')&&!t.shielded;
 function askShield(t,att,cont){g.pend={kind:'shield',mover:att.id,reactor:t.id,cont,timer:setTimeout(()=>{try{if(g.pend&&g.pend.kind==='shield'&&g.pend.reactor===t.id)resolveShield(false);bc()}catch{}},15000)}}
 function resolveShield(yes){const q=g.pend;if(!q)return;clearTimeout(q.timer);g.pend=null;const t=players[q.reactor];let ok=false;
  if(yes&&t&&canShield(t)){t.slots--;t.react=false;t.shielded=true;ok=true;fx({kind:'ring',x:t.x,y:t.y,color:'#6cf'});log(`${t.name}: Щит (+5 КД до начала своего хода)`)}else if(t)log(`${t.name} не применяет Щит`);
  q.cont(ok);bc()}
 function resolvePend(yes){if(!g.pend)return;g.pend.kind==='shield'?resolveShield(yes):resolveOA(yes)}
-function spAtk(p,t,nm,adv0,onHit){const nr=dist(p,t)<=1,dis=!!(t.dodge||(t.prone&&!nr)),adv=!!(adv0||t.down||(t.prone&&nr)),pb=CLASSES.wizard.prof,im=mod(p.st[3]);let a=d20(p),rr='';
+function spAtk(p,t,nm,adv0,onHit){const nr=dist(p,t)<=1,dis=!!(t.dodge||(t.prone&&!nr)),adv=!!(adv0||t.down||(t.prone&&nr)),pb=CLASSES[p.cls].prof,im=mod(p.st[sab(p)]);let a=d20(p),rr='';
  if(dis!==adv){const b=d20(p);rr=` (${dis?'помеха':'преимущество'} ${a}/${b})`;a=dis?Math.min(a,b):Math.max(a,b)}
  const tot=a+pb+im,eac=t.ac+(t.shielded?5:0),hit=a===20||(a!==1&&tot>=eac),head=`${p.name} → ${t.name} (${nm}): ${a}${sg(im)}+${pb}=${tot} vs КД ${eac}${rr}`;
  const fin=sh=>{if(sh||!hit){log(head+(sh?' — Щит! промах':' — промах'));return}onHit(head,a===20)};
@@ -178,20 +186,24 @@ function handle(p,m){
   const R=RACES[c.race];if(!R)throw Error('Выберите расу');const cl=CLASSES[c.cls];if(!cl)throw Error('Выберите класс');const F=FEATS[c.feat];if(!F)throw Error('Выберите черту');if(b.some((x,i)=>x<R.start[i]||x>15))throw Error('Характеристика вне диапазона (макс. 15)');
   if(b.reduce((s,x,i)=>s+COST[x]-COST[R.start[i]],0)>27)throw Error('Больше 27 очков');
   if(c.cls==='fighter'&&!STYLES.includes(c.style))throw Error('Выберите боевой стиль');
+  let esub=null,eab=null,exc=null;if(c.race==='elf'){esub=c.sub;if(!R.subs[esub])throw Error('Выберите подрасу эльфа');
+   if(esub==='dark'){eab=c.ab;if(![3,4,5].includes(eab))throw Error('Тёмный эльф: выберите Интеллект, Мудрость или Харизму')}
+   if(esub==='high'){exc=c.xc;if(!CANTRIPS[exc])throw Error('Высший эльф: выберите заговор')}}
   const inv={};let spent=0;for(const k in c.inv||{}){const n=c.inv[k];if(!ITEMS[k]||!Number.isInteger(n)||n<0)throw Error('Неверный инвентарь');if(n){inv[k]=n;spent+=ITEMS[k].c*n}}
   if(spent>150)throw Error('Не хватает монет');
   Object.assign(p,{name:String(c.name||p.name).slice(0,16),st:b.map((x,i)=>x+(F.ab===i?1:0)),race:c.race,cls:c.cls,feat:c.feat,style:c.style,inv,eq:{main:c.eq?.main||'',off:c.eq?.off||'',armor:c.eq?.armor||''}});
-  const e=eqOk(p,p.eq);if(e)throw Error(e);
+  p.sub=esub;p.sab=eab;const e=eqOk(p,p.eq);if(e)throw Error(e);
   if(c.cls!=='fighter')p.style='';
   if(!cl.armor&&Object.keys(p.inv).some(k=>ITEMS[k].k==='a'||ITEMS[k].k==='s'))throw Error('Класс не владеет бронёй и щитами');
-  p.prep=[];p.cant=[];if(c.cls==='wizard'){const cn=c.cantrips,mc=LEVEL<4?3:4;if(!Array.isArray(cn)||cn.length!==mc||new Set(cn).size!==mc||cn.some(x=>!CANTRIPS[x]))throw Error(`Выберите заговоры: ровно ${mc}`);p.cant=cn.slice();const sp=c.spells,mx=Math.max(1,LEVEL+mod(p.st[3]));if(!Array.isArray(sp)||!sp.length||sp.length>mx||new Set(sp).size!==sp.length||sp.some(x=>!SPELLS[x]))throw Error(`Выберите от 1 до ${mx} заклинаний`);p.prep=sp.slice()}
+  p.prep=[];p.cant=[];if(c.cls==='wizard'){const cn=c.cantrips,mc=LEVEL<4?3:4;if(!Array.isArray(cn)||cn.length!==mc||new Set(cn).size!==mc||cn.some(x=>!CANTRIPS[x]))throw Error(`Выберите заговоры: ровно ${mc}`);p.cant=cn.slice();const sp=c.spells,mx=Math.max(1,LEVEL+mod(p.st[sab(p)]));if(!Array.isArray(sp)||!sp.length||sp.length>mx||new Set(sp).size!==sp.length||sp.some(x=>!SPELLS[x]))throw Error(`Выберите от 1 до ${mx} заклинаний`);p.prep=sp.slice()}
+  if(exc){if(p.cant.includes(exc))throw Error('Этот заговор уже выбран у волшебника — выберите другой для эльфа');p.cant.push(exc)}
   p.maxhp=Math.max(1,cl.hitDie+mod(p.st[2])+((R.hpPerLevel||0)+(F.hpPerLevel||0))*LEVEL);p.hp=p.maxhp;p.sw=cl.secondWind||0;p.slots=cl.slots||0;p.thp=0;p.initBonus=F.initProf?cl.prof:0;p.hd=LEVEL;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;derive(p);p.ready=true;
   if(players.filter(x=>x&&x.ready).length===4)startBattle();return bc()}
  if(g.phase==='battle'&&m.t==='oa'){if(g.pend&&g.pend.reactor===p.id)resolvePend(!!m.yes);return}
  if(g.phase==='battle'&&g.pend)throw Error('Ждём ответ на провоцированную атаку');
  if(g.phase!=='battle'||players[g.order[g.turn]]!==p)throw Error('Не ваш ход');
  const need=(k)=>{if(!p[k])throw Error(k==='act'?'Действие уже потрачено':'Бонусное действие потрачено')};
-if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw'].includes(m.t))throw Error('Вы недееспособны');
+if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap'].includes(m.t))throw Error('Вы недееспособны');
  switch(m.t){
  case'move':{const x=m.x,y=m.y;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Вне поля');
   if(occ(p,x,y))throw Error('Клетка занята');const path=bfs(p,x,y);if(!path)throw Error('Нет пути: далеко или заблокировано');p.path=path;p.waive=null;walk(p);break}
@@ -207,7 +219,7 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   if(k==='oil'){log(`${p.name} бросает масло в ${t.name}: Ловкость ${s.txt}${s.ok?' — увернулся':' — покрыт маслом на 10 ходов'}`);if(!s.ok)t.oil=10}
   else{const d=r(6)+r(6);log(`${p.name} бросает кислоту в ${t.name}: Ловкость ${s.txt}${s.ok?' — уклонился, урона нет':` — провал, ${d} кислотой`}`);if(!s.ok)hurt(t,d,'кислотой')}
   if(alive().length<=1)next();break}
- case'dash':need('act');p.act=false;p.mv+=SPEED-(p.slow&&p.slow.length?2:0);log(`${p.name}: Рывок`);break;
+ case'dash':need('act');p.act=false;p.mv+=spd(p)-(p.slow&&p.slow.length?2:0);log(`${p.name}: Рывок`);break;
  case'disengage':need('act');p.act=false;p.dis=true;log(`${p.name}: Отход`);break;
  case'dodge':need('act');p.act=false;p.dodge=true;log(`${p.name}: Уклонение`);break;
  case'secondwind':{need('bonus');if(nh(p))throw Error('Вы не можете восстанавливать хиты (Леденящее прикосновение)');if(p.sw<=0)throw Error('Применения кончились');
@@ -218,7 +230,7 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   const sh=(e.off==='shield')!==(p.eq.off==='shield');
   if(sh){need('act');p.act=false}
   p.eq=e;derive(p);log(`${p.name} меняет экипировку${sh?' (щит — действие)':''}`);break}
- case'standup':{if(!p.prone)throw Error('Вы не лежите');if(p.laugh)throw Error('Нельзя встать, пока вы смеётесь');const c=Math.floor(SPEED/2);if(p.mv<c)throw Error(`Нужна половина перемещения (${c})`);p.mv-=c;p.prone=false;log(`${p.name} встаёт`);break}
+ case'standup':{if(!p.prone)throw Error('Вы не лежите');if(p.laugh)throw Error('Нельзя встать, пока вы смеётесь');const c=Math.floor(spd(p)/2);if(p.mv<c)throw Error(`Нужна половина перемещения (${c})`);p.mv-=c;p.prone=false;log(`${p.name} встаёт`);break}
  case'stabilize':{need('act');const t=players[m.target];if(!t||t.dead||!t.ready||dist(p,t)>1)throw Error('Цель должна быть в пределах 5 футов');
   if(!t.down||t.stable)throw Error('Цель не нуждается в стабилизации');
   if((p.eq.main==='kit'||p.eq.off==='kit')&&p.kit>0){p.kit--;t.stable=true;log(`${p.name} стабилизирует ${t.name} комплектом`)}
@@ -232,9 +244,9 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   if(t.down){t.down=false;t.stable=false;t.dsL=t.dsD=0}
   log(`${p.name} лечит ${t.name} (Боевой медик): d${hd}=${d}+${pf}, +${t.hp-o} хп`);p.kit--;p.act=false;break}
  case'cast':{const k=m.spell,cn=CANTRIPS[k],sp=cn||SPELLS[k];if(!sp||sp.react)throw Error('Это заклинание так не применяется');need('act');
-  if(p.cls!=='wizard'||!((cn?p.cant:p.prep)||[]).includes(k))throw Error('Заклинание не подготовлено');
+  if(!((cn?p.cant:p.prep)||[]).includes(k))throw Error('Заклинание не подготовлено');
   if(!canCast(p))throw Error('Нельзя колдовать: в руках воинское оружие');if(!cn&&p.slots<=0)throw Error('Нет ячеек заклинаний');
-  const pr=CLASSES.wizard.prof,im=mod(p.st[3]),dc=8+pr+im,use=()=>{if(!cn)p.slots--;p.act=false},chk=()=>{if(alive().length<=1)next()};
+  const pr=CLASSES[p.cls].prof,im=mod(p.st[sab(p)]),dc=8+pr+im,use=()=>{if(!cn)p.slots--;p.act=false},chk=()=>{if(alive().length<=1)next()};
   const tgt=(rng,self)=>{const t=players[m.target];if(!t||!t.ready||t.dead||(!self&&t===p)||dist(p,t)>rng)throw Error(`Цель вне дальности (${rng} кл.)`);return t};
   if(cn&&cn.atk){const t=tgt(cn.rng);use();fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});
    spAtk(p,t,cn.n,k==='shockinggrasp'&&!!ITEMS[t.eq.armor]?.metal,(h,cr)=>{let d=0;for(let i=0;i<(cr?2:1);i++)d+=r(cn.die);
@@ -257,6 +269,9 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
    ids.forEach(id=>{const t=players[id];if(!t||!t.ready||t.dead||t===p||dist(p,t)>24)throw Error('Цель вне дальности (24 кл.)');cnt.set(id,(cnt.get(id)||0)+1)});
    use();ids.forEach((id,i)=>fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:players[id].x,y:players[id].y},delay:i*130}));
    log(`${p.name} — Волшебная стрела`);mmChain(p,[...cnt].map(([id,n])=>[players[id],n]),0);return bc()}
+  if(k==='witchbolt'){const t=tgt(12);use();if(p.conc)endConc(p);p.conc={spell:'witchbolt',target:t.id};p.wbOk=false; // концентрация начинается даже при промахе
+   fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:'#bfe3ff',str:1});log(`${p.name} — Ведьмин снаряд на ${t.name} (концентрация)`);
+   spAtk(p,t,sp.n,false,(h,cr)=>{let d=0;for(let i=0;i<(cr?4:2);i++)d+=r(12);log(`${h} — ${cr?'КРИТ! ':'попал, '}${d} электричеством`);hurt(t,d,'электричеством');chk()});break}
   if(k==='tasha'){const t=tgt(6);use();if(p.conc)endConc(p);fx({kind:'ring',x:t.x,y:t.y,color:'#b06bff'});
    const s=save(t,4,dc);log(`${p.name} — Смех Таши на ${t.name}: спасбросок Мудрости ${s.txt}${s.ok?' — успех':' — провал: ничком и недееспособен'}`);
    if(!s.ok){t.laugh={by:p.id,dc};t.incap=true;t.prone=true;p.conc={spell:'tasha',target:t.id}}break}
@@ -270,6 +285,10 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
    const d=r(8),h=Math.max(1,d+im),o=t.hp;t.hp=Math.min(t.maxhp,t.hp+h);if(t.down){t.down=false;t.stable=false;t.dsL=t.dsD=0}
    fx({kind:'ring',x:t.x,y:t.y,color:'#6f6'});log(`${p.name} — Лечение ран на ${t.name}: d8=${d}${sg(im)}, +${t.hp-o} хп`);break}
   break}
+ case'wbzap':{need('bonus');if(!p.conc||p.conc.spell!=='witchbolt')throw Error('Ведьмин снаряд не поддерживается');if(!p.wbOk)throw Error('Разряд доступен со следующего хода после сотворения');
+  const t=players[p.conc.target];if(!t||t.dead||dist(p,t)>12){endConc(p);log(`Ведьмин снаряд ${p.name} прерван`);break}
+  p.bonus=false;p.wbOk=false;fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:'#bfe3ff',str:1});const d=r(12);
+  log(`${p.name}: Ведьмин снаряд бьёт ${t.name} — ${d} электричеством`);hurt(t,d,'электричеством');if(alive().length<=1)next();break}
  case'end':endTurnFx(p);next();break;
  default:return}
  bc()}
