@@ -115,10 +115,12 @@ function deathRoll(p){if(p.stable)return;const v=d20(p);
  if(v===1)p.dsD+=2;else if(v<10)p.dsD++;else if(v===20)p.dsL+=2;else p.dsL++;
  log(`✖ ${p.name}: спасбросок от смерти ${v} (жизнь ${Math.min(p.dsL,3)}/3, смерть ${Math.min(p.dsD,3)}/3)`);
  if(p.dsD>=3){p.dead=true;endConc(p);log(`☠ ${p.name} умирает`)}else if(p.dsL>=3){p.stable=true;log(`${p.name} стабилизировался`)}}
-function goDown(t){endConc(t);t.down=true;t.hp=0;t.stable=false;t.dsL=t.dsD=0;log(`✖ ${t.name} теряет сознание`)}
-function next(){if(g.phase!=='battle')return;if(alive().length<=1){g.phase='over';setTimeout(resetGame,6000);const w=alive()[0];log(w?`🏆 Победил ${w.name}!`:'Все пали.');return}
+function goDown(t){endConc(t);if(t.laugh)endLaugh(t);t.down=true;t.hp=0;t.stable=false;t.dsL=t.dsD=0;log(`✖ ${t.name} теряет сознание`)}
+function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];if(cu){if(cu.laugh&&!cu.dead&&!cu.down)endTurnFx(cu); // в конце КАЖДОГО хода — спасбросок против Смеха Таши
+  for(const o of players)if(o&&o.gb&&o.gb.by===cu.id&&o.gb.n>=1)o.gb=null}} // подсветка снимается в конце следующего хода заклинателя
+ if(alive().length<=1){g.phase='over';setTimeout(resetGame,6000);const w=alive()[0];log(w?`🏆 Победил ${w.name}!`:'Все пали.');return}
  do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q)}
-function resetGame(){if(g.phase!=='over')return;g={phase:'lobby',order:[],turn:0,log:[],pend:null};
+function resetGame(){if(g.phase!=='over')return;if(g.pend)clearTimeout(g.pend.timer);g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
   for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof'])delete p[k];
   p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});bc()}
@@ -144,7 +146,8 @@ function walk(p){while(p.path&&p.path.length){const c=p.path[0],prev={x:p.x,y:p.
  p.path=[]}
 function save(t,ab,dc,adv){let a=d20(t);if(adv)a=Math.max(a,d20(t));const c=CLASSES[t.cls||'fighter'],mm=mod(t.st[ab]),pf=c.saves.includes(ab)?c.prof:0,tot=a+mm+pf;return{ok:tot>=dc,txt:`${a}${sg(mm)}${pf?'+'+pf:''}=${tot} vs ${dc}`}}
 function endLaugh(p){const c=players[p.laugh.by];if(c&&c.conc&&c.conc.target===p.id)c.conc=null;p.laugh=null;p.incap=false}
-function chkWB(){for(const c of players){if(!c||!c.conc||c.conc.spell!=='witchbolt')continue;if(c.dead||c.down){endConc(c);continue}
+function chkWB(){for(const c of players){if(!c||!c.conc)continue;if(c.dead||c.down){endConc(c);continue}
+ if(c.conc.spell==='shieldoffaith'){const t0=players[c.conc.target];if(!t0||t0.dead)endConc(c);continue}if(c.conc.spell!=='witchbolt')continue;
  const t=players[c.conc.target];if(!t||t.dead){log(`Ведьмин снаряд ${c.name} прерван: цель выбыла`);endConc(c)}else if(dist(c,t)>12){log(`Ведьмин снаряд ${c.name} прерван: цель дальше 12 клеток`);endConc(c)}}}
 function endConc(c){if(!c.conc)return;const t=players[c.conc.target];if(t&&t.laugh&&t.laugh.by===c.id){t.laugh=null;t.incap=false}if(t&&t.sof){t.sof=t.sof.filter(i=>i!==c.id);derive(t)}c.conc=null;log(`${c.name} теряет концентрацию`)}
 function endTurnFx(p){if(p.laugh){const s=save(p,4,p.laugh.dc);log(`${p.name}: спасбросок против Смеха в конце хода ${s.txt}${s.ok?' — смех прекращается':' — продолжает смеяться'}`);if(s.ok)endLaugh(p)}}
@@ -326,7 +329,7 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   const t=players[p.conc.target];if(!t||t.dead||dist(p,t)>12){endConc(p);log(`Ведьмин снаряд ${p.name} прерван`);break}
   p.bonus=false;p.wbOk=false;fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:'#bfe3ff',str:1});const d=r(12);
   log(`${p.name}: Ведьмин снаряд бьёт ${t.name} — ${d} электричеством`);hurt(t,d,'электричеством');if(alive().length<=1)next();break}
- case'end':endTurnFx(p);for(const o of players)if(o&&o.gb&&o.gb.by===p.id&&o.gb.n>=1)o.gb=null;next();break;
+ case'end':next();break;
  default:return}
  bc()}
 // ---------- HTTP + WS ----------
