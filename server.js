@@ -29,7 +29,11 @@ const COST={8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9},STYLES=['def','duel','gwf','t
 const CLASSES={
  fighter:{name:'Воин',hitDie:10,prof:2,saves:[0,2],weapons:['simple','martial'],armor:['light','medium','heavy'],shield:true,secondWind:2},
  wizard:{name:'Волшебник',hitDie:6,prof:2,saves:[3,4],weapons:['simple'],armor:[],shield:false,slots:2,castStat:3},
- cleric:{name:'Жрец',hitDie:8,prof:2,saves:[4,5],weapons:['simple'],armor:['light','medium'],shield:true,slots:2,castStat:4}};
+ cleric:{name:'Жрец',hitDie:8,prof:2,saves:[4,5],weapons:['simple'],armor:['light','medium'],shield:true,slots:2,castStat:4},
+ // Варвар: d12; спасброски Сила и Телосложение; лёгкие и средние доспехи, щиты; простое и воинское оружие.
+ // rage — заряды Ярости (1–2 ур.: 2). noConc — в Ярости концентрироваться нельзя (заготовка на будущее: см. CONCS и 'cast').
+ barbarian:{name:'Варвар',hitDie:12,prof:2,saves:[0,2],weapons:['simple','martial'],armor:['light','medium'],shield:true,rage:2,noConc:true}};
+const PHYS=['колющий','рубящий','дробящий'],CONCS=['resistance','witchbolt','tasha','bless','shieldoffaith']; // физический урон (сопротивление Ярости); заклинания на концентрации
 // категория доспеха по полю dex: 'full' — лёгкий, число — средний, 0 — тяжёлый. Божественный порядок «Защитник» даёт жрецу воинское оружие и тяжёлые доспехи
 const armCat=a=>a.dex==='full'?'light':a.dex===0?'heavy':'medium',armOk=(p,a)=>CLASSES[p.cls].armor.includes(armCat(a))||(armCat(a)==='heavy'&&p.order==='protector'),wprof=p=>[...CLASSES[p.cls].weapons,...(p.order==='protector'?['martial']:[])];
 const LEVEL=1,IDLE=5*60*1000,E8=[8,8,8,8,8,8];
@@ -83,7 +87,7 @@ const MI={
  cleric:{n:'Жрец',stat:4,cant:['sacredflame','tollthedead','wordofradiance','sparethedying','resistance'],spell:['guidingbolt','curewounds','healingword','shieldoffaith','bless']},
  druid:{n:'Друид',stat:4,cant:['poisonspray','starrywisp','primalsavagery'],spell:['guidingbolt','curewounds','healingword']}};
 const SN=['Сила','Ловкость','Телосложение','Интеллект','Мудрость','Харизма'];
-const TOKENS=['human','dwarf','elf','halfling','w_human','w_dwarf','w_elf','w_halfling','c_human','c_dwarf','c_elf','c_halfling']; // воины и маги, доступны для Маскировки
+const TOKENS=['human','dwarf','elf','halfling','w_human','w_dwarf','w_elf','w_halfling','c_human','c_dwarf','c_elf','c_halfling','b_human','b_dwarf','b_elf','b_halfling']; // воины и маги, доступны для Маскировки
 const spd=p=>p.sub==='wood'?7:SPEED,sab=p=>p.sab!=null?p.sab:(CLASSES[p.cls].castStat??3); // скорость (лесной эльф 35 фт) и заклинательная характеристика
 const d20=p=>{let v=r(20);if(RACES[p.race]?.lucky&&v===1)v=r(20);return v};
 const cantAll=p=>[...(p.cant||[]),...(p.mi?p.mi.cant:[])]; // заговоры класса/эльфа + «Посвящённый в магию»
@@ -93,11 +97,11 @@ const shSrc=t=>t.mi&&t.mi.spell==='shield'&&!t.mi.used?'free':(t.slots>0&&((t.pr
 // ---------- СОСТОЯНИЕ ----------
 const players=[null,null,null,null];let g={phase:'lobby',order:[],turn:0,log:[]};
 const sg=n=>(n>=0?'+':'')+n,J=JSON.stringify,log=s=>{g.log.push(s);if(g.log.length>120)g.log.splice(0,60)}; // клиентам уходят только последние 40 строк
-const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
+const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
 const bc=()=>{chkWB();const m=J({t:'state',phase:g.phase,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
-function derive(p){const M=p.st.map(mod),a=ITEMS[p.eq.armor];let ac=10+M[1];
+function derive(p){const M=p.st.map(mod),a=ITEMS[p.eq.armor];let ac=10+M[1]+(p.cls==='barbarian'&&!a?M[2]:0); // Защита без доспехов: 10 + Лов + Тел (щит разрешён)
  if(a){ac=a.base+(a.dex==='full'?M[1]:Math.min(M[1],a.dex));if(p.style==='def')ac+=1}
  if(p.eq.off==='shield')ac+=ITEMS.shield.ac;p.ac=ac+(p.sof&&p.sof.length?2:0)}
 function eqOk(p,e){const cnt={};
@@ -150,15 +154,15 @@ function deathRoll(p){if(p.stable)return;const v=d20(p),bl=blessD(p);
  if(v===1)p.dsD+=2;else if(v===20)p.dsL+=2;else if(v+bl<10)p.dsD++;else p.dsL++;
  log(`✖ ${p.name}: спасбросок от смерти ${v}${bl?'+'+bl+'(благ.)':''} (жизнь ${Math.min(p.dsL,3)}/3, смерть ${Math.min(p.dsD,3)}/3)`);
  if(p.dsD>=3){p.dead=true;endConc(p);log(`☠ ${p.name} умирает`)}else if(p.dsL>=3){p.stable=true;log(`${p.name} стабилизировался`)}}
-function goDown(t){endConc(t);if(t.laugh)endLaugh(t);t.down=true;t.hp=0;t.stable=false;t.dsL=t.dsD=0;log(`✖ ${t.name} теряет сознание`)}
-function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];if(cu){if(cu.laugh&&!cu.dead&&!cu.down)endTurnFx(cu); // в конце КАЖДОГО хода — спасбросок против Смеха Таши
+function goDown(t){t.rage=0;endConc(t);if(t.laugh)endLaugh(t);t.down=true;t.hp=0;t.stable=false;t.dsL=t.dsD=0;log(`✖ ${t.name} теряет сознание`)}
+function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];if(cu){if(cu.laugh&&!cu.dead&&!cu.down)endTurnFx(cu);if(cu.rage)rageTick(cu); // в конце КАЖДОГО хода — спасбросок против Смеха Таши
   for(const o of players)if(o&&o.gb&&o.gb.by===cu.id&&o.gb.n>=1)o.gb=null}} // подсветка снимается в конце следующего хода заклинателя
  if(alive().length<=1){g.phase='over';setTimeout(resetGame,6000);const w=alive()[0];log(w?`🏆 Победил ${w.name}!`:'Все пали.');return}
  const prevT=g.turn;do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);if(g.turn<=prevT)g.round=(g.round||1)+1; // круг очерёдности завершён — новый раунд
  const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q)}
 function resetGame(){if(g.phase!=='over')return;if(g.pend)clearTimeout(g.pend.timer);g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
-  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order'])delete p[k];
+  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order','rage','rg'])delete p[k];
   p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});bc()}
 function startBattle(){g.phase='battle';g.round=1;const used=new Set();
  for(const p of players){let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y)||blocked(x,y));used.add(x+','+y);
@@ -182,7 +186,10 @@ function walk(p){while(p.path&&p.path.length){const c=p.path[0],prev={x:p.x,y:p.
  p.path=[]}
 function blessD(p){return p.bless&&p.bless.length?r(4):0} // Благословение: +1d4 к каждой атаке и спасброску (не складывается само с собой)
 function resD(p){if(!p.res||!p.res.length)return 0;const c=players[p.res[0]];p.res=[];if(c&&c.conc&&c.conc.spell==='resistance')endConc(c,'использовано');return r(4)} // Сопротивление: один раз, затем заклинание заканчивается
-function save(t,ab,dc,adv){let a=d20(t);if(adv)a=Math.max(a,d20(t));const c=CLASSES[t.cls||'fighter'],mm=mod(t.st[ab]),pf=c.saves.includes(ab)?c.prof:0,bl=blessD(t),rs=resD(t),tot=a+mm+pf+bl+rs;return{ok:tot>=dc,txt:`${a}${sg(mm)}${pf?'+'+pf:''}${bl?'+'+bl+'(благ.)':''}${rs?'+'+rs+'(сопр.)':''}=${tot} vs ${dc}`}}
+function save(t,ab,dc,adv){let a=d20(t);if(adv||(ab===0&&t.rage))a=Math.max(a,d20(t)); // Ярость: преимущество на спасброски Силы
+ const c=CLASSES[t.cls||'fighter'],mm=mod(t.st[ab]),pf=c.saves.includes(ab)?c.prof:0,bl=blessD(t),rs=resD(t),tot=a+mm+pf+bl+rs;return{ok:tot>=dc,txt:`${a}${sg(mm)}${pf?'+'+pf:''}${bl?'+'+bl+'(благ.)':''}${rs?'+'+rs+'(сопр.)':''}=${tot} vs ${dc}`}}
+// конец хода варвара: Ярость длится до конца его СЛЕДУЮЩЕГО хода (2 «конца хода»), продление бонусным действием снова ставит 2
+function rageTick(p){if(!p.rage)return;if(p.down||p.dead||p.incap){p.rage=0;log(`${p.name}: ярость прекращается`);return}if(--p.rage<=0){p.rage=0;log(`${p.name}: ярость заканчивается (не продлена)`)}}
 function endLaugh(p){const c=players[p.laugh.by];if(c&&c.conc&&c.conc.target===p.id)c.conc=null;p.laugh=null;p.incap=false}
 function chkWB(){for(const c of players){if(!c||!c.conc)continue;if(c.dead||c.down){endConc(c);continue}
  if(c.conc.spell==='shieldoffaith'){const t0=players[c.conc.target];if(!t0||t0.dead)endConc(c);continue}if(c.conc.spell!=='witchbolt')continue;
@@ -192,7 +199,8 @@ function endConc(c,why){if(!c.conc)return;const cc=c.conc,t=players[cc.target];i
  if(cc.spell==='resistance'&&t&&t.res)t.res=t.res.filter(x=>x!==c.id);
  c.conc=null;log(`${c.name} теряет концентрацию${why?' ('+why+')':''}`)}
 function endTurnFx(p){if(p.laugh){const s=save(p,4,p.laugh.dc);log(`${p.name}: спасбросок против Смеха в конце хода ${s.txt}${s.ok?' — смех прекращается':' — продолжает смеяться'}`);if(s.ok)endLaugh(p)}}
-function hurt(t,dm,ty){if(ty==='огнём'&&t.oil>0&&dm>0){t.oil=0;dm+=5;log(`🔥 Масло на ${t.name} вспыхивает: +5 урона огнём`)}
+function hurt(t,dm,ty){if(t.rage&&dm>0&&PHYS.includes(ty)){const h=Math.floor(dm/2);log(`  ${t.name}: сопротивление Ярости — ${dm} → ${h}`);dm=h} // Ярость: сопротивление дробящему, колющему, рубящему
+ if(ty==='огнём'&&t.oil>0&&dm>0){t.oil=0;dm+=5;log(`🔥 Масло на ${t.name} вспыхивает: +5 урона огнём`)}
  if(dm>0)fx({kind:'dmg',x:t.x,y:t.y,n:dm}); // число урона над существом
  const ab=Math.min(t.thp||0,dm);t.thp=(t.thp||0)-ab;dm-=ab;
  if(t.down){t.dsD++;t.stable=false;t.dsL=0;log(`✖ ${t.name}: +1 к смерти (${t.dsD}/3)`);if(t.dsD>=3){t.dead=true;endConc(t);log(`☠ ${t.name} умирает`)}return}
@@ -241,9 +249,9 @@ function attack(p,t,wh,after){const done=()=>{if(after)after()},i=wInfo(p,wh);
   if(i.dice[0]&&p.feat==='savage'&&!p.savUsed&&g.order[g.turn]===p.id){const o=roll();p.savUsed=true;sv=` [Свирепый: ${d0}/${o}]`;d0=Math.max(d0,o)}
   if(!i.dice[0])d0=1;
   let am=i.m;if(wh==='off'&&p.style!=='twf'&&am>0)am=0;
-  const du=(p.style==='duel'&&wh==='main'&&!i.two&&i.w.k&&ITEMS[p.eq.off]?.k!=='w')?2:0,dm=Math.max(0,d0+am+du);
-  log(`${head} — ${crit?'КРИТ! ':'попал, '}урон ${dm} (кости ${d0}${sv}, мод ${sg(am)}${du?', стиль +2':''})`);
-  hurt(t,dm);
+  const du=(p.style==='duel'&&wh==='main'&&!i.two&&i.w.k&&ITEMS[p.eq.off]?.k!=='w')?2:0,rg=(p.rage&&!i.rng&&i.m===mod(p.st[0]))?2:0,dm=Math.max(0,d0+am+du+rg); // Ярость: +2 к урону ближнего боя от Силы
+  log(`${head} — ${crit?'КРИТ! ':'попал, '}урон ${dm} (кости ${d0}${sv}, мод ${sg(am)}${du?', стиль +2':''}${rg?', ярость +2':''})`);
+  hurt(t,dm,i.w.dt||'дробящий');
   if((t.dead||t.down)&&(alive().length<=1||t.id===g.order[g.turn]))next();
   done()};
  if(hit&&a!==20&&!t.shielded&&canShield(t)&&total<t.ac+cvA+5){askShield(t,p,fin);return}
@@ -273,14 +281,14 @@ function handle(p,m){
    if(!Array.isArray(sp)||!sp.length||sp.length>mx||new Set(sp).size!==sp.length||sp.some(x=>!L.spell.includes(x)))throw Error(`Выберите от 1 до ${mx} заклинаний`);p.prep=sp.slice()}
   if(exc){if(p.cant.includes(exc))throw Error('Этот заговор уже выбран у волшебника — выберите другой для эльфа');p.cant.push(exc)}
   if(mi&&mi.cant.some(x=>p.cant.includes(x)))throw Error('Заговор «Посвящённого в магию» уже выбран другим источником');
-  p.maxhp=Math.max(1,cl.hitDie+mod(p.st[2])+((R.hpPerLevel||0)+(F.hpPerLevel||0))*LEVEL);p.hp=p.maxhp;p.sw=cl.secondWind||0;p.slots=cl.slots||0;p.thp=0;p.initBonus=F.initProf?cl.prof:0;p.hd=LEVEL;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;derive(p);p.ready=true;
+  p.maxhp=Math.max(1,cl.hitDie+mod(p.st[2])+((R.hpPerLevel||0)+(F.hpPerLevel||0))*LEVEL);p.hp=p.maxhp;p.sw=cl.secondWind||0;p.rg=cl.rage||0;p.rage=0;p.slots=cl.slots||0;p.thp=0;p.initBonus=F.initProf?cl.prof:0;p.hd=LEVEL;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;derive(p);p.ready=true;
   if(players.filter(x=>x&&x.ready).length===4)startBattle();return bc()}
  if(g.phase==='battle'&&m.t==='oa'){if(g.pend&&g.pend.reactor===p.id)resolvePend(!!m.yes);return}
  if(g.phase==='battle'&&g.pend)throw Error('Ждём ответ на провоцированную атаку');
  if(g.phase==='battle'&&m.t==='dropconc'){if(!p.conc)throw Error('Вы не концентрируетесь');endConc(p);return bc()} // бесплатно и в любой момент
  if(g.phase!=='battle'||players[g.order[g.turn]]!==p)throw Error('Не ваш ход');
  const need=(k)=>{if(!p[k])throw Error(k==='act'?'Действие уже потрачено':'Бонусное действие потрачено')};
-if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap'].includes(m.t))throw Error('Вы недееспособны');
+if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap','rage','rageext'].includes(m.t))throw Error('Вы недееспособны');
  switch(m.t){
  case'move':{const x=m.x,y=m.y;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Вне поля');
   if(blocked(x,y))throw Error('Там стена или укрытие — клетка непроходима');
@@ -299,6 +307,10 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   if(alive().length<=1)next();break}
  case'dash':need('act');p.act=false;p.mv+=spd(p)-(p.slow&&p.slow.length?2:0);log(`${p.name}: Рывок`);break;
  case'disengage':need('act');p.act=false;p.dis=true;log(`${p.name}: Отход`);break;
+ case'rage':{need('bonus');if(p.cls!=='barbarian')throw Error('Ярость доступна только варвару');if(p.rage)throw Error('Вы уже в ярости — её можно продлить');if(!(p.rg>0))throw Error('Заряды ярости кончились');
+  p.bonus=false;p.rg--;p.rage=2;if(p.conc)endConc(p,'ярость'); // в ярости концентрироваться нельзя
+  fx({kind:'ring',x:p.x,y:p.y,color:'#e5533d'});log(`🔥 ${p.name} впадает в ярость (зарядов осталось: ${p.rg}): +2 урона Силой, сопротивление дробящему/колющему/рубящему`);break}
+ case'rageext':{need('bonus');if(!p.rage)throw Error('Вы не в ярости');p.bonus=false;p.rage=2;fx({kind:'ring',x:p.x,y:p.y,color:'#e5533d'});log(`🔥 ${p.name} продлевает ярость до конца своего следующего хода`);break}
  case'dodge':need('act');p.act=false;p.dodge=true;log(`${p.name}: Уклонение`);break;
  case'secondwind':{need('bonus');if(nh(p))throw Error('Вы не можете восстанавливать хиты (Леденящее прикосновение)');if(p.sw<=0)throw Error('Применения кончились');
   const roll=r(CLASSES.fighter.hitDie),heal=Math.max(0,roll+mod(p.st[2])+1),old=p.hp;
@@ -321,7 +333,7 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   const hd=CLASSES[t.cls].hitDie,pf=CLASSES[p.cls].prof,d=r(hd),h=d+pf,o=t.hp;t.hd--;t.hp=Math.min(t.maxhp,t.hp+h);
   if(t.down){t.down=false;t.stable=false;t.dsL=t.dsD=0}
   log(`${p.name} лечит ${t.name} (Боевой медик): d${hd}=${d}+${pf}, +${t.hp-o} хп`);p.kit--;p.act=false;break}
- case'cast':{const k=m.spell,cn=CANTRIPS[k],sp=cn||SPELLS[k];if(!sp||sp.react)throw Error('Это заклинание так не применяется');need(sp.bonus?'bonus':'act');
+ case'cast':{const k=m.spell,cn=CANTRIPS[k],sp=cn||SPELLS[k];if(!sp||sp.react)throw Error('Это заклинание так не применяется');need(sp.bonus?'bonus':'act');if(p.rage&&CONCS.includes(k))throw Error('В ярости нельзя концентрироваться');
   const fr=!cn&&!!p.mi&&p.mi.spell===k&&!p.mi.used; // бесплатное заклинание «Посвящённого в магию»
   if(cn?!cantAll(p).includes(k):!((p.prep||[]).includes(k)||(p.mi&&p.mi.spell===k)))throw Error('Заклинание не подготовлено');
   if(!canCast(p))throw Error('Нельзя колдовать: в руках воинское оружие');
@@ -359,7 +371,7 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
    spAtk(p,t,sp.n,false,(h,cr)=>{let d=0;for(let i=0;i<(cr?4:2);i++)d+=r(12);log(`${h} — ${cr?'КРИТ! ':'попал, '}${d} электричеством`);hurt(t,d,'электричеством');chk()},ab);break}
   if(k==='tasha'){const t=tgt(6);use();if(p.conc)endConc(p);fx({kind:'ring',x:t.x,y:t.y,color:'#b06bff'});
    const s=save(t,4,dc);log(`${p.name} — Смех Таши на ${t.name}: спасбросок Мудрости ${s.txt}${s.ok?' — успех':' — провал: ничком и недееспособен'}`);
-   if(!s.ok){t.laugh={by:p.id,dc};t.incap=true;t.prone=true;p.conc={spell:'tasha',target:t.id}}break}
+   if(!s.ok){t.laugh={by:p.id,dc};t.incap=true;if(t.rage){t.rage=0;log(`${t.name}: ярость прекращается (недееспособен)`)}t.prone=true;p.conc={spell:'tasha',target:t.id}}break}
   if(k==='thunderwave'){use();fx({kind:'wave',x:p.x-1,y:p.y-1,w:3,h:3});log(`${p.name} — Волна грома (радиус 1 кл. вокруг мага)`);const dmg=r(8)+r(8);
    players.filter(t=>t&&t.ready&&!t.dead&&t!==p&&dist(p,t)<=1).forEach(t=>{const dx=Math.sign(t.x-p.x),dy=Math.sign(t.y-p.y);
     const s=save(t,2,dc),d=s.ok?Math.floor(dmg/2):dmg;log(`  ${t.name}: Телосложение ${s.txt} — ${s.ok?'успех':'провал, отброшен'}, ${d} звуком`);
