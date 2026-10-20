@@ -12,7 +12,7 @@ const ITEMS={
  greatsword:W('Большой меч',[2,6],'рубящий',{two:1},50),
  leather:A('Кожаный доспех',11,'full',15),
  studded:A('Проклёпанный кожаный',12,'full',45),
- halfplate:A('Полулаты',15,2,120),
+ halfplate:A('Полулаты',15,2,150),
  scale:A('Чешуйчатый доспех',14,2,50),
  chainmail:A('Тяжёлая кольчуга',16,0,75,13),
  shield:{k:'s',n:'Щит',ac:2,c:10},
@@ -32,7 +32,11 @@ const CLASSES={
  cleric:{name:'Жрец',hitDie:8,prof:2,saves:[4,5],weapons:['simple'],armor:['light','medium'],shield:true,slots:2,castStat:4},
  // Варвар: d12; спасброски Сила и Телосложение; лёгкие и средние доспехи, щиты; простое и воинское оружие.
  // rage — заряды Ярости (1–2 ур.: 2). noConc — в Ярости концентрироваться нельзя (заготовка на будущее: см. CONCS и 'cast').
- barbarian:{name:'Варвар',hitDie:12,prof:2,saves:[0,2],weapons:['simple','martial'],armor:['light','medium'],shield:true,rage:2,noConc:true}};
+ barbarian:{name:'Варвар',hitDie:12,prof:2,saves:[0,2],weapons:['simple','martial'],armor:['light','medium'],shield:true,rage:2,noConc:true},
+ // Паладин (5.5e): d10; спасброски Мудрость и Харизма; любая броня и щиты; простое и воинское оружие.
+ // slots — 2 ячейки 1 круга; prep — ровно 2 подготовленных заклинания из списка list (не зависит от характеристик);
+ // castStat 5 — Харизма; pool — Возложение рук: 5 хитов × уровень паладина.
+ paladin:{name:'Паладин',hitDie:10,prof:2,saves:[4,5],weapons:['simple','martial'],armor:['light','medium','heavy'],shield:true,slots:2,castStat:5,prep:2,pool:5,list:['divinesmite','bless','curewounds','shieldoffaith']}};
 const PHYS=['колющий','рубящий','дробящий'],CONCS=['resistance','witchbolt','tasha','bless','shieldoffaith']; // физический урон (сопротивление Ярости); заклинания на концентрации
 // категория доспеха по полю dex: 'full' — лёгкий, число — средний, 0 — тяжёлый. Божественный порядок «Защитник» даёт жрецу воинское оружие и тяжёлые доспехи
 const armCat=a=>a.dex==='full'?'light':a.dex===0?'heavy':'medium',armOk=(p,a)=>CLASSES[p.cls].armor.includes(armCat(a))||(armCat(a)==='heavy'&&p.order==='protector'),wprof=p=>[...CLASSES[p.cls].weapons,...(p.order==='protector'?['martial']:[])];
@@ -58,9 +62,11 @@ const SPELLS={
  thunderwave:{n:'Волна грома',desc:'Волна вокруг вас: все существа в радиусе 1 клетки (в т.ч. по диагонали), направление не выбирается. Спасбросок Телосложения, 2d8 звука и отталкивание на 2 кл. от вас; при успехе половина урона.'},
  falselife:{n:'Псевдожизнь',desc:'Вы получаете 1d4+4 временных хитов.'},
  curewounds:{n:'Лечение ран',desc:'Касание (1 кл.): восстанавливает 2d8 + мод. заклинательной характеристики.'},
+ divinesmite:{n:'Божественная кара',bonus:1,desc:'Школа: воплощение. Бонусное действие сразу после попадания рукопашной атакой; на себя, V, мгновенно: цель получает 2d8 излучением (4d8 при критическом попадании). Тратит ячейку.'},
  guidingbolt:{n:'Направляющий снаряд',rng:24,desc:'Дальняя атака заклинанием, 24 кл.: 4d6 излучением. Следующая атака любого существа по цели до конца вашего следующего хода — с преимуществом.'},
  healingword:{n:'Слово исцеления',rng:12,bonus:1,desc:'Бонусное действие, 12 кл.: цель (можно себя) восстанавливает 2d4 + мод. заклинательной характеристики хитов.'},
  shieldoffaith:{n:'Щит веры',rng:12,bonus:1,desc:'Бонусное действие, концентрация, 12 кл.: цель (можно себя) получает +2 к КД, пока вы концентрируетесь.'},
+ command:{n:'Приказ',rng:12,desc:'Жрец, паладин. Действие, 12 кл.: спасбросок Мудрости, иначе в свой следующий ход цель выполняет команду сама (ход проходит автоматически): Подойди — идёт к вам и останавливается вплотную; Брось — убирает предметы из рук в инвентарь; Убегай — тратит ход на бегство прочь (с Рывком); Падай — падает ничком; Стой — ничего не делает.'},
  disguise:{n:'Маскировка',desc:'На себя. Выберите любой токен (воины и маги) или вернитесь к своему — меняется только токен, его видят все. Действует, пока не примените снова.'},
  witchbolt:{n:'Ведьмин снаряд',desc:'Концентрация, 12 кл. Дальняя атака заклинанием: 2d12 электричеством. В каждый следующий ваш ход бонусным действием 1d12 цели автоматически (даже после промаха). Прерывается, если цель дальше 12 клеток.'},
  bless:{n:'Благословение',rng:6,desc:'Жрец, паладин. Концентрация, до 10 раундов. До 3 существ в 6 кл. (можно себя): каждый бросок атаки и спасбросок получает +1d4.'}};
@@ -73,7 +79,7 @@ const CANTRIPS={
  chilltouch:{n:'Леденящее прикосновение',rng:24,die:10,dt:'некротической энергией',atk:1,col:'#9a7bd1',desc:'Дальняя атака, 24 кл.: 1d10 некротической; цель не восстанавливает хиты до начала вашего следующего хода.'},
  swordburst:{n:'Вспышка мечей',rng:1,die:6,dt:'силовым полем',aoe:1,sv:1,desc:'Вокруг вас (радиус 1 кл.): спасбросок Ловкости, при провале 1d6 силовым полем.'},
  // заговоры жреца и друида (в первоначальном списке не были заданы — минимальный набор для черты «Посвящённый в магию»)
- sacredflame:{n:'Священное пламя',rng:12,die:8,dt:'излучением',sv:1,col:'#ffe9a3',desc:'Жрец. 12 кл.: спасбросок Ловкости, при провале 1d8 излучением.'},
+ sacredflame:{n:'Священное пламя',rng:12,die:8,dt:'излучением',sv:1,nocover:1,col:'#ffe9a3',desc:'Жрец. 12 кл.: спасбросок Ловкости, при провале 1d8 излучением. Игнорирует укрытия (кроме полного: за стеной не сработает).'},
  tollthedead:{n:'Погребальный звон',rng:12,die:8,dt:'некротической энергией',sv:4,col:'#7d8a9a',desc:'Жрец. 12 кл.: спасбросок Мудрости, при провале 1d8 некротической (1d12, если цель уже ранена).'},
  wordofradiance:{n:'Слово сияния',rng:1,die:6,dt:'излучением',aoe:1,sv:2,col:'#fff3b0',desc:'Жрец. Вокруг вас (радиус 1 кл.): выбранные существа делают спасбросок Телосложения, при провале 1d6 излучением.'},
  poisonspray:{n:'Ядовитые брызги',rng:6,die:12,dt:'ядом',sv:2,col:'#7ad23a',desc:'Друид. 6 кл.: спасбросок Телосложения, при провале 1d12 ядом.'},
@@ -84,10 +90,10 @@ const CANTRIPS={
 // Списки классов для «Посвящённого в магию» (и для волшебника: его заговоры/заклинания — список wizard)
 const MI={
  wizard:{n:'Волшебник',stat:3,cant:['firebolt','rayoffrost','shockinggrasp','acidsplash','chilltouch','swordburst'],spell:['shield','magicmissile','tasha','thunderwave','falselife','curewounds','disguise','witchbolt']},
- cleric:{n:'Жрец',stat:4,cant:['sacredflame','tollthedead','wordofradiance','sparethedying','resistance'],spell:['guidingbolt','curewounds','healingword','shieldoffaith','bless']},
+ cleric:{n:'Жрец',stat:4,cant:['sacredflame','tollthedead','wordofradiance','sparethedying','resistance'],spell:['guidingbolt','curewounds','healingword','shieldoffaith','bless','command']},
  druid:{n:'Друид',stat:4,cant:['poisonspray','starrywisp','primalsavagery'],spell:['guidingbolt','curewounds','healingword']}};
 const SN=['Сила','Ловкость','Телосложение','Интеллект','Мудрость','Харизма'];
-const TOKENS=['human','dwarf','elf','halfling','w_human','w_dwarf','w_elf','w_halfling','c_human','c_dwarf','c_elf','c_halfling','b_human','b_dwarf','b_elf','b_halfling']; // воины и маги, доступны для Маскировки
+const TOKENS=['human','dwarf','elf','halfling','w_human','w_dwarf','w_elf','w_halfling','c_human','c_dwarf','c_elf','c_halfling','b_human','b_dwarf','b_elf','b_halfling','p_elf','p_human']; // воины и маги, доступны для Маскировки
 const spd=p=>p.sub==='wood'?7:SPEED,sab=p=>p.sab!=null?p.sab:(CLASSES[p.cls].castStat??3); // скорость (лесной эльф 35 фт) и заклинательная характеристика
 const d20=p=>{let v=r(20);if(RACES[p.race]?.lucky&&v===1)v=r(20);return v};
 const cantAll=p=>[...(p.cant||[]),...(p.mi?p.mi.cant:[])]; // заговоры класса/эльфа + «Посвящённый в магию»
@@ -97,7 +103,7 @@ const shSrc=t=>t.mi&&t.mi.spell==='shield'&&!t.mi.used?'free':(t.slots>0&&((t.pr
 // ---------- СОСТОЯНИЕ ----------
 const players=[null,null,null,null];let g={phase:'lobby',order:[],turn:0,log:[]};
 const sg=n=>(n>=0?'+':'')+n,J=JSON.stringify,log=s=>{g.log.push(s);if(g.log.length>120)g.log.splice(0,60)}; // клиентам уходят только последние 40 строк
-const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
+const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cmd:!!p.cmd,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,loh:p.loh,lm:p.cls==='paladin'?CLASSES.paladin.pool*LEVEL:0,sm:!!p.sm,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
 const bc=()=>{chkWB();const m=J({t:'state',phase:g.phase,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
@@ -115,7 +121,7 @@ function eqOk(p,e){const cnt={};
  if(a&&a.str&&p.st[0]<a.str)return `Нужна Сила ${a.str}`;if(a&&!armOk(p,a))return 'Класс не владеет этим доспехом';if(e.off==='shield'&&!CLASSES[p.cls].shield)return 'Класс не владеет щитами';return null}
 function wInfo(p,wh){const w=ITEMS[p.eq[wh]],M=p.st.map(mod);
  if(!w||w.k!=='w')return{n:'Кулак',dice:[0,0],m:M[0],two:false,reach:1,w:{}};
- const two=!!(w.f.two||(w.v&&wh==='main'&&!p.eq.off));
+ const two=!!(w.f.two||(w.v&&wh==='main'&&!p.eq.off&&p.style!=='duel')); // Дуэлянт держит универсальное оружие одной рукой (1d8+2 выгоднее 1d10)
  return{n:w.n,dice:two&&w.v?w.v:w.d,m:w.f.rng?M[1]:w.f.finesse?Math.max(M[0],M[1]):M[0],two,reach:w.f.reach?2:1,rng:w.f.rng||0,w}}
 const dist=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
 // ===== СТЕНЫ И УКРЫТИЯ =====
@@ -155,14 +161,34 @@ function deathRoll(p){if(p.stable)return;const v=d20(p),bl=blessD(p);
  log(`✖ ${p.name}: спасбросок от смерти ${v}${bl?'+'+bl+'(благ.)':''} (жизнь ${Math.min(p.dsL,3)}/3, смерть ${Math.min(p.dsD,3)}/3)`);
  if(p.dsD>=3){p.dead=true;endConc(p);log(`☠ ${p.name} умирает`)}else if(p.dsL>=3){p.stable=true;log(`${p.name} стабилизировался`)}}
 function goDown(t){t.rage=0;endConc(t);if(t.laugh)endLaugh(t);t.down=true;t.hp=0;t.stable=false;t.dsL=t.dsD=0;log(`✖ ${t.name} теряет сознание`)}
-function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];if(cu){if(cu.laugh&&!cu.dead&&!cu.down)endTurnFx(cu);if(cu.rage)rageTick(cu); // в конце КАЖДОГО хода — спасбросок против Смеха Таши
+function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];if(cu){if(cu.laugh&&!cu.dead&&!cu.down)endTurnFx(cu);if(cu.rage)rageTick(cu);cu.sm=null; // в конце КАЖДОГО хода — спасбросок против Смеха Таши
   for(const o of players)if(o&&o.gb&&o.gb.by===cu.id&&o.gb.n>=1)o.gb=null}} // подсветка снимается в конце следующего хода заклинателя
  if(alive().length<=1){g.phase='over';setTimeout(resetGame,6000);const w=alive()[0];log(w?`🏆 Победил ${w.name}!`:'Все пали.');return}
  const prevT=g.turn;do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);if(g.turn<=prevT)g.round=(g.round||1)+1; // круг очерёдности завершён — новый раунд
- const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q)}
+ const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q);if(q.cmd){runCmd(q);return next()}}
+const CMDS={approach:'Подойди',drop:'Брось',flee:'Убегай',prone:'Падай',halt:'Стой'};
+// все клетки, до которых цель дойдёт за limit очков движения (те же правила, что у bfs: стены, существа, диагональ мимо двух стен)
+function reachAll(p,limit,ok){const pass=!!RACES[p.race]?.pass,start={x:p.x,y:p.y,d:0,pr:null},seen=new Map([[p.x*N+p.y,start]]),fr=[start];
+ for(let h=0;h<fr.length;h++){const c=fr[h],sc=p.prone?2:1;if(c.d+sc>limit)continue;
+  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){if(!dx&&!dy)continue;const x=c.x+dx,y=c.y+dy,k=x*N+y;
+   if(x<0||y<0||x>=N||y>=N||seen.has(k)||blocked(x,y)||(dx&&dy&&blocked(c.x+dx,c.y)&&blocked(c.x,c.y+dy))||(!pass&&occ(p,x,y))||(ok&&!ok(c,{x,y})))continue;const n={x,y,d:c.d+sc,pr:c};seen.set(k,n);fr.push(n)}}
+ return fr}
+// Ход под действием Приказа: игрок ничего не делает, программа выполняет команду и сразу передаёт ход
+function runCmd(p){const c=p.cmd,cs=players[c.by];p.cmd=null;p.dis=true; // принуждённое движение не провоцирует атак по возможности
+ log(`${p.name} исполняет приказ «${CMDS[c.opt]}»`);
+ if(c.opt==='drop'){p.eq.main='';p.eq.off='';derive(p)} // руки пустеют, предметы остаются в инвентаре
+ else if(c.opt==='prone'){p.prone=true}
+ else if((c.opt==='approach'||c.opt==='flee')&&cs&&!cs.dead){
+  const sp=spd(p)-(p.slow&&p.slow.length?2:0),limit=c.opt==='flee'?sp*2:sp; // «Убегай» — с Рывком
+  const cells=reachAll(p,limit,c.opt==='flee'?(a,b)=>dist(b,cs)>=dist(a,cs):null).filter(n=>!occ(p,n.x,n.y)),cur=dist(p,cs),e2=(a)=>Math.hypot(a.x-cs.x,a.y-cs.y),score=n=>c.opt==='approach'?[-dist(n,cs),-e2(n),-n.d]:[dist(n,cs),e2(n),-n.d];
+  let best=null;for(const n of cells){if(!best){best=n;continue}const a=score(n),b=score(best);for(let i=0;i<a.length;i++){if(a[i]!==b[i]){if(a[i]>b[i])best=n;break}}}
+  const better=best&&(c.opt==='approach'?dist(best,cs)<cur:dist(best,cs)>cur||(dist(best,cs)===cur&&e2(best)>e2(p)));
+  if(better&&(best.x!==p.x||best.y!==p.y)){const route=[];for(let n=best;n.pr;n=n.pr)route.unshift({x:n.x,y:n.y});p.mv=limit;p.path=route;walk(p);fx({kind:'ring',x:p.x,y:p.y,color:'#ff8fa3'})}
+  else log(`  ${p.name} не может ${c.opt==='approach'?'подойти ближе':'убежать дальше'}`)}
+ p.mv=0;p.act=p.bonus=false;p.path=[]}
 function resetGame(){if(g.phase!=='over')return;if(g.pend)clearTimeout(g.pend.timer);g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
-  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order','rage','rg'])delete p[k];
+  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order','rage','rg','cmd','loh','sm'])delete p[k];
   p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});bc()}
 function startBattle(){g.phase='battle';g.round=1;const used=new Set();
  for(const p of players){let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y)||blocked(x,y));used.add(x+','+y);
@@ -186,8 +212,10 @@ function walk(p){while(p.path&&p.path.length){const c=p.path[0],prev={x:p.x,y:p.
  p.path=[]}
 function blessD(p){return p.bless&&p.bless.length?r(4):0} // Благословение: +1d4 к каждой атаке и спасброску (не складывается само с собой)
 function resD(p){if(!p.res||!p.res.length)return 0;const c=players[p.res[0]];p.res=[];if(c&&c.conc&&c.conc.spell==='resistance')endConc(c,'использовано');return r(4)} // Сопротивление: один раз, затем заклинание заканчивается
-function save(t,ab,dc,adv){let a=d20(t);if(adv||(ab===0&&t.rage))a=Math.max(a,d20(t)); // Ярость: преимущество на спасброски Силы
- const c=CLASSES[t.cls||'fighter'],mm=mod(t.st[ab]),pf=c.saves.includes(ab)?c.prof:0,bl=blessD(t),rs=resD(t),tot=a+mm+pf+bl+rs;return{ok:tot>=dc,txt:`${a}${sg(mm)}${pf?'+'+pf:''}${bl?'+'+bl+'(благ.)':''}${rs?'+'+rs+'(сопр.)':''}=${tot} vs ${dc}`}}
+function save(t,ab,dc,adv,cb){let a=d20(t);if(adv||(ab===0&&t.rage))a=Math.max(a,d20(t)); // Ярость: преимущество на спасброски Силы
+ const c=CLASSES[t.cls||'fighter'],mm=mod(t.st[ab]),pf=c.saves.includes(ab)?c.prof:0,bl=blessD(t),rs=resD(t),cv=cb||0,tot=a+mm+pf+bl+rs+cv;return{ok:tot>=dc,txt:`${a}${sg(mm)}${pf?'+'+pf:''}${bl?'+'+bl+'(благ.)':''}${rs?'+'+rs+'(сопр.)':''}${cv?'+'+cv+'(укрытие)':''}=${tot} vs ${dc}`}}
+// Бонус укрытия к спасброску Ловкости от эффекта, идущего из клетки src (+2 полуукрытие, +5 укрытие на 3/4). Вплотную укрытия нет; ignore — «Священное пламя»
+const cvSave=(src,t,ignore)=>ignore||dist(src,t)<=1?0:cover(src,t).ac;
 // конец хода варвара: Ярость длится до конца его СЛЕДУЮЩЕГО хода (2 «конца хода»), продление бонусным действием снова ставит 2
 function rageTick(p){if(!p.rage)return;if(p.down||p.dead||p.incap){p.rage=0;log(`${p.name}: ярость прекращается`);return}if(--p.rage<=0){p.rage=0;log(`${p.name}: ярость заканчивается (не продлена)`)}}
 function endLaugh(p){const c=players[p.laugh.by];if(c&&c.conc&&c.conc.target===p.id)c.conc=null;p.laugh=null;p.incap=false}
@@ -249,9 +277,10 @@ function attack(p,t,wh,after){const done=()=>{if(after)after()},i=wInfo(p,wh);
   if(i.dice[0]&&p.feat==='savage'&&!p.savUsed&&g.order[g.turn]===p.id){const o=roll();p.savUsed=true;sv=` [Свирепый: ${d0}/${o}]`;d0=Math.max(d0,o)}
   if(!i.dice[0])d0=1;
   let am=i.m;if(wh==='off'&&p.style!=='twf'&&am>0)am=0;
-  const du=(p.style==='duel'&&wh==='main'&&!i.two&&i.w.k&&ITEMS[p.eq.off]?.k!=='w')?2:0,rg=(p.rage&&!i.rng&&i.m===mod(p.st[0]))?2:0,dm=Math.max(0,d0+am+du+rg); // Ярость: +2 к урону ближнего боя от Силы
+  const du=(p.style==='duel'&&wh==='main'&&!i.two&&!i.rng&&i.w.k&&ITEMS[p.eq.off]?.k!=='w')?2:0,rg=(p.rage&&!i.rng&&i.m===mod(p.st[0]))?2:0,dm=Math.max(0,d0+am+du+rg); // Ярость: +2 к урону ближнего боя от Силы
   log(`${head} — ${crit?'КРИТ! ':'попал, '}урон ${dm} (кости ${d0}${sv}, мод ${sg(am)}${du?', стиль +2':''}${rg?', ярость +2':''})`);
   hurt(t,dm,i.w.dt||'дробящий');
+  if(p.cls==='paladin'&&!i.rng&&!t.dead&&!t.down&&players[g.order[g.turn]]===p&&(p.prep||[]).includes('divinesmite'))p.sm={t:t.id,crit}; // можно сразу применить Божественную кару
   if((t.dead||t.down)&&(alive().length<=1||t.id===g.order[g.turn]))next();
   done()};
  if(hit&&a!==20&&!t.shielded&&canShield(t)&&total<t.ac+cvA+5){askShield(t,p,fin);return}
@@ -275,20 +304,21 @@ function handle(p,m){
   p.sub=esub;p.sab=eab;p.mi=mi;p.lvl=false;const e=eqOk(p,p.eq);if(e)throw Error(e);
   if(c.cls!=='fighter')p.style='';
   if(Object.keys(p.inv).some(k=>(ITEMS[k].k==='a'&&!armOk(p,ITEMS[k]))||(ITEMS[k].k==='s'&&!cl.shield)))throw Error('Класс не владеет этим доспехом или щитом');
-  p.prep=[];p.cant=[];if(cl.slots){const L=MI[c.cls],cn=c.cantrips,mc=(LEVEL<4?3:4)+(p.order==='thaumaturge'?1:0); // Чудотворец — один лишний заговор
+  p.prep=[];p.cant=[];if(cl.slots){const L=cl.list?{cant:[],spell:cl.list}:MI[c.cls],cn=cl.list?[]:c.cantrips,mc=cl.list?0:(LEVEL<4?3:4)+(p.order==='thaumaturge'?1:0); // Чудотворец — один лишний заговор
    if(!Array.isArray(cn)||cn.length!==mc||new Set(cn).size!==mc||cn.some(x=>!L.cant.includes(x)))throw Error(`Выберите заговоры: ровно ${mc}`);p.cant=cn.slice();
-   const sp=c.spells,mx=Math.max(1,LEVEL+mod(p.st[sab(p)])); // подготовка: уровень + мод. заклинательной характеристики, минимум 1
-   if(!Array.isArray(sp)||!sp.length||sp.length>mx||new Set(sp).size!==sp.length||sp.some(x=>!L.spell.includes(x)))throw Error(`Выберите от 1 до ${mx} заклинаний`);p.prep=sp.slice()}
+   const sp=c.spells,mx=cl.prep||Math.max(1,LEVEL+mod(p.st[sab(p)])); // подготовка: уровень + мод. заклинательной характеристики, минимум 1
+   if(!Array.isArray(sp)||!sp.length||sp.length>mx||(cl.prep&&sp.length!==mx)||new Set(sp).size!==sp.length||sp.some(x=>!L.spell.includes(x)))throw Error(`Выберите ${cl.prep?'ровно':'от 1 до'} ${mx} заклинаний`);p.prep=sp.slice()}
   if(exc){if(p.cant.includes(exc))throw Error('Этот заговор уже выбран у волшебника — выберите другой для эльфа');p.cant.push(exc)}
   if(mi&&mi.cant.some(x=>p.cant.includes(x)))throw Error('Заговор «Посвящённого в магию» уже выбран другим источником');
-  p.maxhp=Math.max(1,cl.hitDie+mod(p.st[2])+((R.hpPerLevel||0)+(F.hpPerLevel||0))*LEVEL);p.hp=p.maxhp;p.sw=cl.secondWind||0;p.rg=cl.rage||0;p.rage=0;p.slots=cl.slots||0;p.thp=0;p.initBonus=F.initProf?cl.prof:0;p.hd=LEVEL;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;derive(p);p.ready=true;
+  p.maxhp=Math.max(1,cl.hitDie+mod(p.st[2])+((R.hpPerLevel||0)+(F.hpPerLevel||0))*LEVEL);p.hp=p.maxhp;p.sw=cl.secondWind||0;p.loh=(cl.pool||0)*LEVEL;p.sm=null;p.rg=cl.rage||0;p.rage=0;p.slots=cl.slots||0;p.thp=0;p.initBonus=F.initProf?cl.prof:0;p.hd=LEVEL;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;derive(p);p.ready=true;
   if(players.filter(x=>x&&x.ready).length===4)startBattle();return bc()}
  if(g.phase==='battle'&&m.t==='oa'){if(g.pend&&g.pend.reactor===p.id)resolvePend(!!m.yes);return}
  if(g.phase==='battle'&&g.pend)throw Error('Ждём ответ на провоцированную атаку');
  if(g.phase==='battle'&&m.t==='dropconc'){if(!p.conc)throw Error('Вы не концентрируетесь');endConc(p);return bc()} // бесплатно и в любой момент
+ if(p.sm&&!(m.t==='cast'&&m.spell==='divinesmite'))p.sm=null; // окно Божественной кары — только сразу после попадания
  if(g.phase!=='battle'||players[g.order[g.turn]]!==p)throw Error('Не ваш ход');
  const need=(k)=>{if(!p[k])throw Error(k==='act'?'Действие уже потрачено':'Бонусное действие потрачено')};
-if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap','rage','rageext'].includes(m.t))throw Error('Вы недееспособны');
+if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap','rage','rageext','layonhands'].includes(m.t))throw Error('Вы недееспособны');
  switch(m.t){
  case'move':{const x=m.x,y=m.y;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Вне поля');
   if(blocked(x,y))throw Error('Там стена или укрытие — клетка непроходима');
@@ -301,12 +331,19 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
  case'throw':{need('act');const k=m.item,it=ITEMS[k];if(!it||it.k!=='t'||!(p.inv[k]>0))throw Error('Нет такого предмета');
   const t=players[m.target];if(!t||!t.ready||t.dead||t===p||dist(p,t)>4)throw Error('Цель вне дальности (4 кл.)');if(cover(p,t).blk)throw Error('Цель за стеной: бросок невозможен');
   p.inv[k]--;p.act=false;fx({kind:'lob',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},c1:it.c1,c2:it.c2});fx({kind:'ring',x:t.x,y:t.y,color:it.c1,delay:600});
-  const s=save(t,1,8+mod(p.st[1])+CLASSES[p.cls].prof);
+  const s=save(t,1,8+mod(p.st[1])+CLASSES[p.cls].prof,false,cvSave(p,t));
   if(k==='oil'){log(`${p.name} бросает масло в ${t.name}: Ловкость ${s.txt}${s.ok?' — увернулся':' — покрыт маслом на 10 ходов'}`);if(!s.ok)t.oil=10}
   else{const d=r(6)+r(6);log(`${p.name} бросает кислоту в ${t.name}: Ловкость ${s.txt}${s.ok?' — уклонился, урона нет':` — провал, ${d} кислотой`}`);if(!s.ok)hurt(t,d,'кислотой')}
   if(alive().length<=1)next();break}
  case'dash':need('act');p.act=false;p.mv+=spd(p)-(p.slow&&p.slow.length?2:0);log(`${p.name}: Рывок`);break;
  case'disengage':need('act');p.act=false;p.dis=true;log(`${p.name}: Отход`);break;
+ case'layonhands':{need('bonus');if(p.cls!=='paladin')throw Error('Возложение рук доступно только паладину');
+  const t=players[m.target];if(!t||!t.ready||t.dead||dist(p,t)>1)throw Error('Нужна цель рядом (касание, 1 кл.), можно и себя');
+  if(nh(t))throw Error('Цель не может восстанавливать хиты');if(!(p.loh>0))throw Error('Пул Возложения рук пуст');
+  const want=Number.isInteger(m.amount)?m.amount:p.loh;if(want<1||want>p.loh)throw Error(`Выберите от 1 до ${p.loh} хитов`);
+  const h=Math.min(want,t.maxhp-t.hp);if(h<=0)throw Error('Цель здорова'); // тратится только реально восстановленное
+  p.bonus=false;p.loh-=h;t.hp+=h;if(t.down){t.down=false;t.stable=false;t.dsL=t.dsD=0}
+  fx({kind:'ring',x:t.x,y:t.y,color:'#ffe08a'});log(`🙌 ${p.name} возлагает руки на ${t.name}: +${h} хп (в пуле осталось ${p.loh})`);break}
  case'rage':{need('bonus');if(p.cls!=='barbarian')throw Error('Ярость доступна только варвару');if(p.rage)throw Error('Вы уже в ярости — её можно продлить');if(!(p.rg>0))throw Error('Заряды ярости кончились');
   p.bonus=false;p.rg--;p.rage=2;if(p.conc)endConc(p,'ярость'); // в ярости концентрироваться нельзя
   fx({kind:'ring',x:p.x,y:p.y,color:'#e5533d'});log(`🔥 ${p.name} впадает в ярость (зарядов осталось: ${p.rg}): +2 урона Силой, сопротивление дробящему/колющему/рубящему`);break}
@@ -342,6 +379,9 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   const tgt=(rng,self)=>{const t=players[m.target];if(!t||!t.ready||t.dead||(!self&&t===p)||dist(p,t)>rng)throw Error(`Цель вне дальности (${rng} кл.)`);if(cover(p,t).blk)throw Error('Цель за стеной: прямого пути нет');return t};
   if(k==='sparethedying'){const t=tgt(cn.rng,true);if(!t.down||t.stable)throw Error('Цель не нуждается в стабилизации');use();t.stable=true;fx({kind:'ring',x:t.x,y:t.y,color:cn.col});log(`${p.name} — Спасение умирающего: ${t.name} стабилизирован`);break}
   if(k==='resistance'){const t=tgt(cn.rng,true);use();if(p.conc)endConc(p,'новая концентрация');(t.res=t.res||[]).push(p.id);p.conc={spell:'resistance',target:t.id};fx({kind:'ring',x:t.x,y:t.y,color:cn.col});log(`${p.name} — Сопротивление на ${t.name}: +1d4 к одному спасброску (концентрация)`);break}
+  if(k==='divinesmite'){const sm=p.sm,t=sm&&players[sm.t];if(!t||t.dead)throw Error('Божественную кару можно применить только сразу после попадания рукопашной атакой');
+   use();p.sm=null;let d=0;for(let i=0;i<(sm.crit?4:2);i++)d+=r(8);
+   fx({kind:'ring',x:t.x,y:t.y,color:'#ffe08a'});log(`✨ ${p.name} — Божественная кара по ${t.name}: ${sm.crit?'4d8':'2d8'}=${d} излучением`);hurt(t,d,'излучением');chk();break}
   if(cn&&cn.atk){const t=tgt(cn.rng);use();fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});
    spAtk(p,t,cn.n,k==='shockinggrasp'&&!!ITEMS[t.eq.armor]?.metal,(h,cr)=>{let d=0;for(let i=0;i<(cr?2:1);i++)d+=r(cn.die);
     log(`${h} — ${cr?'КРИТ! ':'попал, '}${d} ${cn.dt}`);hurt(t,d,cn.dt);
@@ -353,14 +393,17 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
    const ts=ids.map(i=>{const t=players[i];if(!t||!t.ready||t.dead||t===p||dist(p,t)>12)throw Error('Цель вне дальности (12 кл.)');if(cover(p,t).blk)throw Error('Цель за стеной: прямого пути нет');return t});
    if(ts.length===2&&dist(ts[0],ts[1])>1)throw Error('Две цели должны стоять на соседних клетках');
    use();const dmg=r(6);log(`${p.name} — Кислотный всплеск`);
-   ts.forEach(t=>{fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});const s=save(t,1,dc);log(`  ${t.name}: Ловкость ${s.txt} — ${s.ok?'успех':`провал, ${dmg} кислотой`}`);if(!s.ok)hurt(t,dmg)});chk();break}
+   ts.forEach(t=>{fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});const s=save(t,1,dc,false,cvSave(p,t));log(`  ${t.name}: Ловкость ${s.txt} — ${s.ok?'успех':`провал, ${dmg} кислотой`}`);if(!s.ok)hurt(t,dmg)});chk();break}
   if(cn&&cn.aoe){const ids=m.targets;if(!Array.isArray(ids)||!ids.length||ids.some(i=>!Number.isInteger(i))||new Set(ids).size!==ids.length)throw Error('Выберите существ рядом с собой');
    const ts=ids.map(i=>{const t=players[i];if(!t||!t.ready||t.dead||t===p||dist(p,t)>1)throw Error('Цель должна быть рядом (1 кл.)');return t});
    use();fx(k==='swordburst'?{kind:'swords',x:p.x,y:p.y}:{kind:'ring',x:p.x,y:p.y,color:cn.col});log(`${p.name} — ${cn.n}`);const dmg=r(cn.die);
-   ts.forEach(t=>{const s=save(t,cn.sv,dc);log(`  ${t.name}: ${SN[cn.sv]} ${s.txt} — ${s.ok?'успех':`провал, ${dmg} ${cn.dt}`}`);if(!s.ok)hurt(t,dmg,cn.dt)});chk();break}
+   ts.forEach(t=>{const s=save(t,cn.sv,dc,false,cn.sv===1?cvSave(p,t,cn.nocover):0);log(`  ${t.name}: ${SN[cn.sv]} ${s.txt} — ${s.ok?'успех':`провал, ${dmg} ${cn.dt}`}`);if(!s.ok)hurt(t,dmg,cn.dt)});chk();break}
   if(cn&&cn.sv!=null){const t=tgt(cn.rng);use();fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:cn.col,str:1});
-   const s=save(t,cn.sv,dc),d=r(k==='tollthedead'&&t.hp<t.maxhp?12:cn.die);
+   const s=save(t,cn.sv,dc,false,cn.sv===1?cvSave(p,t,cn.nocover):0),d=r(k==='tollthedead'&&t.hp<t.maxhp?12:cn.die);
    log(`${p.name} — ${cn.n} на ${t.name}: ${SN[cn.sv]} ${s.txt} — ${s.ok?'успех':`провал, ${d} ${cn.dt}`}`);if(!s.ok)hurt(t,d,cn.dt);chk();break}
+  if(k==='command'){const opt=m.opt;if(!CMDS[opt])throw Error('Выберите команду');const t=tgt(12);if(t.down)throw Error('Цель без сознания и не слышит приказа');use();
+   fx({kind:'dart',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},color:'#ff8fa3',str:1});const s=save(t,4,dc);
+   log(`${p.name} — Приказ «${CMDS[opt]}» на ${t.name}: спасбросок Мудрости ${s.txt}${s.ok?' — устоял':' — подчинится в свой следующий ход'}`);if(!s.ok)t.cmd={by:p.id,opt};break}
   if(k==='disguise'){const tk=m.tok;if(tk!=='orig'&&!TOKENS.includes(tk))throw Error('Выберите токен');use();p.disg=tk==='orig'?null:tk;fx({kind:'ring',x:p.x,y:p.y,color:'#d9a6ff'});log(`${p.name} — Маскировка`);break}
   if(k==='magicmissile'){const ids=m.targets;if(!Array.isArray(ids)||ids.length!==3)throw Error('Нужно 3 стрелы');const cnt=new Map();
    ids.forEach(id=>{const t=players[id];if(!t||!t.ready||t.dead||t===p||dist(p,t)>24)throw Error('Цель вне дальности (24 кл.)');if(cover(p,t).blk)throw Error('Цель за стеной: прямого пути нет');cnt.set(id,(cnt.get(id)||0)+1)});
@@ -419,7 +462,7 @@ wss.on('connection',ws=>{
  const id=players.findIndex(x=>!x);
  if(g.phase!=='lobby'||id<0){ws.send(J({t:'err',m:'Игра уже идёт или мест нет'}));return ws.close()}
  const p=players[id]={id,ws,pong:true,last:Date.now(),ready:false,name:'Игрок'+(id+1),color:`hsl(${id*90+r(40)} 70% 50%)`};
- ws.send(J({t:'init',id,ITEMS,COST,N,SPEED,RACES,FEATS,SPELLS,CANTRIPS,MI,CLASSES,COVER,OBST:terrList()}));bc();
+ ws.send(J({t:'init',id,ITEMS,COST,N,SPEED,RACES,FEATS,SPELLS,CANTRIPS,MI,CLASSES,COVER,CMDS,OBST:terrList()}));bc();
  ws.on('close',()=>{if(g.phase==='lobby'){players[id]=null}else if(!p.dead){p.dead=true;p.hp=0;log(`${p.name} отключился`);if(g.pend&&(g.pend.mover===p.id||g.pend.reactor===p.id))resolvePend(false);if(alive().length<=1||players[g.order[g.turn]]===p)next()}
   if(g.phase!=='lobby'&&!players.some(x=>x&&x.ws.readyState===1)){g.phase='over';resetGame()}bc()});
  ws.on('pong',()=>{p.pong=true});
