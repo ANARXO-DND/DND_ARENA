@@ -208,9 +208,10 @@ function bfs(p,tx,ty){const pass=!!RACES[p.race]?.pass,seen=new Set([p.x*N+p.y])
    if(x<0||y<0||x>=N||y>=N||seen.has(k)||blockedFor(p,x,y)||(dx&&dy&&blockedFor(p,c.x+dx,c.y)&&blockedFor(p,c.x,c.y+dy))||(!pass&&occ(p,x,y)))continue;seen.add(k);fr.push({x,y,d:c.d+sc,pr:c})}}
  return null}
 function walk(p){while(p.path&&p.path.length){const c=p.path[0],prev={x:p.x,y:p.y};
- if(!p.dis){const prov=e=>e&&e.ready&&!e.dead&&!e.down&&!e.incap&&!e.isMon&&(g.mode!=='panic'||p.isMon)&&e!==p&&e.react&&!(p.waive&&p.waive.has(e.id))&&zone(e,prev)&&!zone(e,c),e=players.find(prov); // монстры реакций не делают; в «Панике» союзники друг друга не провоцируют
+ if(!p.dis){const prov=e=>e&&e.ready&&!e.dead&&!e.down&&!e.incap&&!e.noOA&&(g.mode==='panic'?!!e.isMon!==!!p.isMon:!e.isMon)&&e!==p&&e.react&&!(p.waive&&p.waive.has(e.id))&&zone(e,prev)&&!zone(e,c),e=players.find(prov); // монстры реакций не делают; в «Панике» союзники друг друга не провоцируют
   if(e&&p.freeLeave>0){p.freeLeave--;p.waive=p.waive||new Set();players.filter(prov).forEach(x=>p.waive.add(x.id));log(`${p.name} ловко выскальзывает из зоны контроля — без провоцированной атаки`)}else 
-  if(e){(p.waive=p.waive||new Set()).add(e.id);g.pend={kind:'oa',mover:p.id,reactor:e.id,timer:setTimeout(()=>{try{if(g.pend&&g.pend.reactor===e.id)resolvePend(false);bc()}catch{}},15000)};log(`${p.name} покидает зону ${e.name}…`);return}}
+  if(e&&e.isMon){(p.waive=p.waive||new Set()).add(e.id);e.react=false;log(`${p.name} покидает зону ${e.name} — провоцированная атака`);g.actor=e.id;monAttack(e,p,()=>{if(!p.dead&&!p.down&&g.phase==='battle')walk(p);else p.path=[];bc()});return} // монстр атакует автоматически
+  else if(e){(p.waive=p.waive||new Set()).add(e.id);g.pend={kind:'oa',mover:p.id,reactor:e.id,timer:setTimeout(()=>{try{if(g.pend&&g.pend.reactor===e.id)resolvePend(false);bc()}catch{}},15000)};log(`${p.name} покидает зону ${e.name}…`);return}}
  p.x=c.x;p.y=c.y;p.mv-=p.prone?2:1;p.path.shift();p.waive=null}
  p.path=[];if(p.afterMove){const f=p.afterMove;p.afterMove=null;f()}}
 function blessD(p){return p.bless&&p.bless.length?r(4):0} // Благословение: +1d4 к каждой атаке и спасброску (не складывается само с собой)
@@ -339,13 +340,15 @@ function build(p,c,shop){
   p.level=lv;p.maxhp=Math.max(1,cl.hitDie+mod(p.st[2])+(lv-1)*(Math.floor(cl.hitDie/2)+1+mod(p.st[2]))+((R.hpPerLevel||0)+(F.hpPerLevel||0))*lv);p.hp=p.maxhp;p.sw=cl.secondWind||0;p.asg=(c.cls==='fighter'&&lv>=2)?1:0;p.fs=(c.cls==='paladin'&&lv>=2)?1:0;p.loh=(cl.pool||0)*lv;p.sm=null;p.rg=cl.rage||0;p.rage=0;p.sx=(lv>=2&&cl.slots2)||cl.slots||0;p.slots=p.sx;p.thp=0;p.initBonus=F.initProf?cl.prof:0;p.hd=lv;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;derive(p);p.coins=budget-spent;if(!shop)p.core=coreSig(c);}
 // ---------- монстры (фиксированные характеристики) ----------
 const MONS={
- goblin:{n:'Гоблин-воин',xp:50,ac:15,hp:()=>r(6)+r(6)+r(6),speed:6,st:[8,15,10,10,8,8],ini:2,hit:4,dice:[1,6,2],dt:'рубящий',adv:[1,4],free:1,tok:'m_goblin',col:'#5a9a3a'},
+ goblin:{n:'Гоблин-воин',xp:50,ac:15,hp:()=>r(6)+r(6)+r(6),speed:6,st:[8,15,10,10,8,8],ini:2,hit:4,dice:[1,6,2],dt:'рубящий',adv:[1,4],free:99,tok:'m_goblin',col:'#5a9a3a'}, // free:99 — гоблины уходят из зоны контроля без провоцированных атак
+ // Гоблин-лучник: статблок гоблина-воина, но стреляет из лука (колющий, норма 16 кл. = 80 фт), держит дистанцию keep=7 кл. (35 фт) до ближайшего противника, провоцированных атак не делает (noOA)
+ gobarcher:{n:'Гоблин-лучник',xp:50,ac:15,hp:()=>r(6)+r(6)+r(6),speed:6,st:[8,15,10,10,8,8],ini:2,hit:4,dice:[1,6,2],dt:'колющий',adv:[1,4],free:99,archer:1,keep:7,rng:16,noOA:1,tok:'m_gobarcher',col:'#5a9a3a'},
  wolf:{n:'Волк',xp:50,ac:12,hp:()=>r(8)+r(8)+2,speed:8,st:[14,15,12,3,12,6],ini:2,hit:4,dice:[1,6,2],dt:'колющий',prone:1,pack:1,tok:'m_wolf',col:'#8a8f99'},
  hobgoblin:{n:'Хобгоблин-воин',xp:100,ac:18,hp:()=>r(8)+r(8)+2,speed:6,st:[13,12,12,10,10,9],ini:3,hit:3,dice:[1,8,1],dt:'рубящий',tok:'m_hobgoblin',col:'#c9792e'}};
 const POOL=()=>['goblin','wolf','hobgoblin']; // стражи 1–2; монстры прошлых страж остаются доступными
 // набор врагов на бюджет XP: случайный вид, случайное число (1–4, но не больше, чем хватает очков), круг за кругом; не хватает на выбранный — берём другой вид
 function pickGroup(budget,pool){const out=[];let left=budget;for(let g2=0;g2<60&&left>0;g2++){const aff=pool.filter(k=>MONS[k].xp<=left);if(!aff.length)break;const k=aff[r(aff.length)-1],n=Math.min(r(4),Math.floor(left/MONS[k].xp));for(let i=0;i<n;i++)out.push(k);left-=n*MONS[k].xp}return out}
-function mkMon(k,id,c,no){const M=MONS[k],hp=M.hp();return{id,isMon:true,team:1,kind:k,name:`${M.n} ${no}`,cls:'monster',race:'monster',level:1,ready:true,x:c.x,y:c.y,hp,maxhp:hp,ac:M.ac,st:M.st.slice(),speed:M.speed,mv:M.speed,xp:M.xp,disg:M.tok,color:M.col,eq:{main:'',off:'',armor:''},inv:{},prep:[],cant:[],thp:0,act:true,bonus:true,react:true,slots:0,style:'',init:d20({race:'monster'})+M.ini,freeLeave:M.free||0,ws:{readyState:0,send(){}}}}
+function mkMon(k,id,c,no){const M=MONS[k],hp=M.hp();return{id,isMon:true,team:1,kind:k,name:`${M.n} ${no}`,cls:'monster',race:'monster',level:1,ready:true,x:c.x,y:c.y,hp,maxhp:hp,ac:M.ac,st:M.st.slice(),speed:M.speed,mv:M.speed,xp:M.xp,disg:M.tok,color:M.col,eq:{main:'',off:'',armor:''},inv:{},prep:[],cant:[],thp:0,act:true,bonus:true,react:true,slots:0,style:'',init:d20({race:'monster'})+M.ini,freeLeave:M.free||0,noOA:!!M.noOA,ws:{readyState:0,send(){}}}}
 // ---------- карта: пещера 5×7 + стены по бокам; нижний ряд пещеры — ворота (проходят только враги) ----------
 function loadTerrain(map){terrain.clear();for(const[k,v]of map)terrain.set(k,v)}
 function mapBc(){const m=J({t:'map',list:terrList(),cave:g.cave||null});for(const p of plist())p.ws.send(m)}
@@ -376,7 +379,7 @@ function startWatch(){clearTimeout(g.shopT);g.panics=r(4);g.pn=0;setupCave();pla
  banner({text:`Продержитесь ${n} ${w}`,sub:`Стража №${g.watch}`});log(`🛡 Стража №${g.watch}: продержитесь ${n} ${w}`);startPanic()}
 function startPanic(){clearTimeout(g.restT);g.pn++;const n=plist().length,budget=n*50+(g.watch-1)*50;g.budget=budget;
  for(let i=4;i<players.length;i++)players[i]=null;players.length=4;
- const kinds=pickGroup(budget,POOL()),cells=spawnCells(kinds.length),cnt={},no={};
+ const kinds=pickGroup(budget,POOL()).map(k=>k==='goblin'&&r(2)===1?'gobarcher':k),cells=spawnCells(kinds.length),cnt={},no={};
  kinds.forEach((k,i)=>{no[k]=(no[k]||0)+1;cnt[k]=no[k];players[4+i]=mkMon(k,4+i,cells[i],no[k])});
  const list=Object.entries(cnt).map(([k,c])=>`${c}× ${MONS[k].n}`).join(', ');
  log(`⚔ Паника ${g.pn}/${g.panics} — сложность ${budget} XP: ${list}`);banner({text:`Паника ${g.pn} из ${g.panics}`,sub:`Сложность ${budget} XP · ${list}`});
@@ -430,14 +433,15 @@ function monTurn(m){if(g.phase!=='battle'||players[g.order[g.turn]]!==m||m.dead)
  clearTimeout(m.wd);m.wd=setTimeout(()=>{if(g.phase==='battle'&&players[g.order[g.turn]]===m){if(g.pend){clearTimeout(g.pend.timer);g.pend=null}next();bc()}},25000); // страховка: ход монстра не может зависнуть
  if(m.incap){log(`${m.name} недееспособен`);return end()}
  if(m.prone){m.mv=Math.max(0,m.mv-Math.floor(m.speed/2));m.prone=false;log(`${m.name} встаёт`)}
+ if(MONS[m.kind].archer)return archTurn(m,end);
  const tg=pickTarget(m);if(!tg){log(`${m.name} не находит целей`);return end()}
  if(m.kind==='goblin'&&m.hp<m.maxhp&&r(2)===1)return monFlee(m,tg,end); // раненый гоблин с шансом 50% убегает на 30 фт (6 клеток)
  monGo(m,tg,end)}
 function routeTo(n){const a=[];for(let q=n;q.pr;q=q.pr)a.unshift({x:q.x,y:q.y});return a}
-function monFlee(m,tg,end){const cells=reachAll(m,Math.min(m.mv,6),(a,b)=>dist(b,tg)>=dist(a,tg)).filter(n=>!occ(m,n.x,n.y));let best=null;
+function monFlee(m,tg,end,fb){const cells=reachAll(m,Math.min(m.mv,6),(a,b)=>dist(b,tg)>=dist(a,tg)).filter(n=>!occ(m,n.x,n.y));let best=null;
  for(const n of cells){const sc=[-dist(n,tg),-Math.hypot(n.x-tg.x,n.y-tg.y),n.d];if(!best||cmpA(sc,best.sc)<0)best={n,sc}}
  if(best&&(best.n.x!==m.x||best.n.y!==m.y)&&dist(best.n,tg)>dist(m,tg)){log(`${m.name} ранен и убегает от ${tg.name}`);m.path=routeTo(best.n);m.afterMove=end;return walk(m)}
- monGo(m,tg,end)}
+ return fb?fb():monGo(m,tg,end)}
 function monGo(m,tg,end){const adj=t=>dist(m,t)<=1&&!cover(m,t).blk;if(adj(tg))return monStrike(m,tg,end);
  const Dt=field(m,tg),R=reachAll(m,m.mv).filter(n=>!occ(m,n.x,n.y));let best=null;
  for(const n of R){const dv=Dt[n.x*N+n.y];if(dv<0)continue;const sc=[dist(n,tg)<=1&&!cover(n,tg).blk?0:1,dv,n.d];if(!best||cmpA(sc,best.sc)<0)best={n,sc}}
@@ -449,12 +453,32 @@ function monStrike(m,tg,end){setTimeout(()=>{if(g.phase!=='battle'||players[g.or
  if(m.kind==='hobgoblin')t=(standing.length?standing:adjs).sort((a,b)=>(a.ac+(a.shielded?5:0))-(b.ac+(b.shielded?5:0)))[0]; // бьёт того, у кого меньше КД
  if(m.kind==='goblin'){const dn=adjs.filter(p=>p.down);if(dn.length)t=dn[0]}
  monAttack(m,t,end)},300)}
+// ---------- лучник: держит 35 фт (7 кл.) до ближайшего стоящего противника и каждый ход стреляет по ближайшей видимой цели (по лежащим — только если стоящих нет) ----------
+function archTurn(m,end){const hs=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead),st=hs.filter(p=>!p.down),pool=st.length?st:hs;
+ if(!pool.length){log(`${m.name} не находит целей`);return end()}
+ const tg=pool.slice().sort((a,b)=>dist(m,a)-dist(m,b)||a.hp-b.hp)[0];
+ if(m.hp<m.maxhp&&r(2)===1)return monFlee(m,tg,()=>archShoot(m,end),()=>archMove(m,pool,end)); // раненый — как и гоблин-воин: 50% убегает (и стреляет)
+ archMove(m,pool,end)}
+function archMove(m,pool,end){const M=MONS[m.kind],K=M.keep,dmin=n=>{let d=99;for(const h of pool){const v=dist(n,h);if(v<d)d=v}return d},
+  // 0 — с клетки виден ближайший противник, 1 — виден кто-то другой, 2 — линии огня нет
+  vis=n=>{const seen=pool.filter(h=>!cover(n,h).blk&&dist(n,h)<=M.rng*4);if(!seen.length)return 2;const dm=dmin(n);return seen.some(h=>dist(n,h)===dm)?0:1};
+ let best=null;for(const n of reachAll(m,m.mv).filter(n=>!occ(m,n.x,n.y))){const dm=dmin(n),sc=[dm>=K?0:1,vis(n),Math.abs(dm-K),n.d]; // не ближе K, линия огня на ближайшего, как можно ближе к K, поменьше шагов
+  if(!best||cmpA(sc,best.sc)<0)best={n,sc}}
+ if(best&&(best.n.x!==m.x||best.n.y!==m.y)){log(`${m.name} ${dmin(m)<K?'отходит, сохраняя дистанцию 35 фт':'занимает позицию для стрельбы'}`);m.path=routeTo(best.n);m.afterMove=()=>archShoot(m,end);return walk(m)}
+ archShoot(m,end)}
+function archShoot(m,end){setTimeout(()=>{if(g.phase!=='battle'||players[g.order[g.turn]]!==m||m.dead)return;
+ const hs=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead&&!cover(m,p).blk),st=hs.filter(p=>!p.down),pool=st.length?st:hs;
+ if(!pool.length){log(`${m.name} не видит целей`);return end()}
+ monAttack(m,pool.sort((a,b)=>dist(m,a)-dist(m,b)||a.hp-b.hp)[0],end)},300)}
 function monAttack(m,t,end){const M=MONS[m.kind],gb=t.gb!=null;if(gb)t.gb=null;
+ const rw=!!M.archer,cv=rw?cover(m,t):{blk:false,ac:0},dd=dist(m,t); // лук: укрытие +2/+5 КД, стена закрывает линию
+ if(cv.blk){log(`${m.name} не может выстрелить: путь закрыт`);return end()}
  const pack=!!M.pack&&players.some(o=>o&&o.isMon&&o!==m&&!o.dead&&!o.incap&&dist(o,t)<=1); // Тактика стаи
- const adv=!!(t.down||t.prone||gb||t.reck||pack),dis=!!t.dodge;let a=r(20),rr='';
+ const adv=!!(t.down||(t.prone&&!rw)||gb||t.reck||pack),dis=!!(t.dodge||(rw&&(t.prone||dd<=1||dd>M.rng))); // дальнобойная: помеха по лежащим, вплотную и дальше нормы
+ let a=r(20),rr='';
  if(adv!==dis){const b=r(20);rr=` (${adv?'преимущество':'помеха'} ${a}/${b})`;a=adv?Math.max(a,b):Math.min(a,b)}
- const total=a+M.hit,eac=t.ac+(t.shielded?5:0),hit=a===20||(a!==1&&total>=eac),head=`${m.name} → ${t.name}: ${a}+${M.hit}=${total} vs КД ${eac}${rr}${pack?' [тактика стаи]':''}`;
- fx({kind:'ring',x:t.x,y:t.y,color:'#e55'});
+ const total=a+M.hit,eac=t.ac+(t.shielded?5:0)+cv.ac,hit=a===20||(a!==1&&total>=eac),head=`${m.name} → ${t.name}${rw?' (лук)':''}: ${a}+${M.hit}=${total} vs КД ${eac}${cv.ac?` (укрытие +${cv.ac})`:''}${rr}${pack?' [тактика стаи]':''}`;
+ fx(rw?{kind:'arrow',from:{x:m.x,y:m.y},to:{x:t.x,y:t.y},arc:1}:{kind:'ring',x:t.x,y:t.y,color:'#e55'}); // лук — стрела по дуге
  const fin=sh=>{if(sh||!hit){log(head+(sh?' — Щит! промах':' — промах'));return end()}
   const crit=a===20,[n,sd,md]=M.dice;let dm=md,ex=0;for(let i=0;i<n*(crit?2:1);i++)dm+=r(sd);
   if(M.adv&&adv){for(let i=0;i<M.adv[0];i++)ex+=r(M.adv[1]);dm+=ex} // гоблин: при преимуществе +1d4
