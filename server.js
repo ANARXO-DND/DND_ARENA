@@ -105,8 +105,8 @@ const shSrc=t=>t.mi&&t.mi.spell==='shield'&&!t.mi.used?'free':(t.slots>0&&((t.pr
 const players=[null,null,null,null]; // 0–3 — игроки; с 4 — монстры режима «Паника гоблинов»
 let g={phase:'lobby',order:[],turn:0,log:[]};
 const sg=n=>(n>=0?'+':'')+n,J=JSON.stringify,log=s=>{g.log.push(s);if(g.log.length>120)g.log.splice(0,60)}; // клиентам уходят только последние 40 строк
-const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cmd:!!p.cmd,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,level:p.level,sx:p.sx,asg:p.asg,reck:!!p.reck,fs:p.fs,mon:!!p.isMon,xp:p.xp,vote:p.vote,sr:p.sr,rr:p.rr,lvUp:p.lvUp,coins:p.coins,ak:p.atkd,loh:p.loh,lm:p.cls==='paladin'?CLASSES.paladin.pool*p.level:0,sm:!!p.sm,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
-const bc=()=>{chkWB();const m=J({t:'state',phase:g.phase,mode:g.mode,vleft:g.voteEnd?Math.max(0,Math.ceil((g.voteEnd-Date.now())/1000)):0,pn:g.mode==='panic'?{w:g.watch,n:g.panics,c:g.pn,b:g.budget}:null,cave:g.cave||null,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover,target:g.pend.target,tot:g.pend.tot,dc:g.pend.dc}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
+const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cmd:!!p.cmd,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,grab:!!p.grab,hold:p.holding!=null,level:p.level,sx:p.sx,asg:p.asg,reck:!!p.reck,fs:p.fs,mon:!!p.isMon,xp:p.xp,vote:p.vote,sr:p.sr,rr:p.rr,lvUp:p.lvUp,coins:p.coins,ak:p.atkd,loh:p.loh,lm:p.cls==='paladin'?CLASSES.paladin.pool*p.level:0,sm:!!p.sm,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
+const bc=()=>{chkWB();chkGrapple();const m=J({t:'state',phase:g.phase,mode:g.mode,vleft:g.voteEnd?Math.max(0,Math.ceil((g.voteEnd-Date.now())/1000)):0,pn:g.mode==='panic'?{w:g.watch,n:g.panics,c:g.pn,b:g.budget}:null,cave:g.cave||null,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover,target:g.pend.target,tot:g.pend.tot,dc:g.pend.dc}:null});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
 function derive(p){if(p.isMon)return;const M=p.st.map(mod),a=ITEMS[p.eq.armor];let ac=10+M[1]+(p.cls==='barbarian'&&!a?M[2]:0); // Защита без доспехов: 10 + Лов + Тел (щит разрешён)
@@ -157,7 +157,8 @@ function setTerrain(x,y,t){if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y
  const m=J({t:'terrain',list:terrList()});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m));return true}
 const alive=()=>players.filter(p=>p&&p.ready&&!p.dead&&!p.down&&!(g.mode==='panic'&&p.isMon)); // в «Панике» считаются только герои
 function startTurn(p){if(p.conc&&p.conc.r0!=null&&(g.round||1)-p.conc.r0>=10)endConc(p,'10 раундов прошло');for(const o of players)if(o){if(o.slow)o.slow=o.slow.filter(i=>i!==p.id);if(o.noheal)o.noheal=o.noheal.filter(i=>i!==p.id);if(o.gb&&o.gb.by===p.id){if(o.gb.n>=1)o.gb=null;else o.gb.n=1}} // эффекты заговоров кончаются с началом хода заклинателя
- if(p.oil>0)p.oil--;p.mv=spd(p)-(p.slow&&p.slow.length?2:0);p.act=p.bonus=true;p.atkd=false;p.reck=false;p.surge=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.wbOk=true;p.shielded=false;p.lvl=false;log(`— Ход: ${p.name} —`)}
+ if(p.oil>0)p.oil--;p.mv=spd(p)-(p.slow&&p.slow.length?2:0);if(p.grab){p.mvSaved=p.mv;p.mv=0} // схвачен: скорость 0
+ p.act=p.bonus=true;p.atkd=false;p.reck=false;p.surge=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.wbOk=true;p.shielded=false;p.lvl=false;log(`— Ход: ${p.name} —`)}
 function deathRoll(p){if(p.stable)return;const v=d20(p),bl=blessD(p);
  if(v===1)p.dsD+=2;else if(v===20)p.dsL+=2;else if(v+bl<10)p.dsD++;else p.dsL++;
  log(`✖ ${p.name}: спасбросок от смерти ${v}${bl?'+'+bl+'(благ.)':''} (жизнь ${Math.min(p.dsL,3)}/3, смерть ${Math.min(p.dsD,3)}/3)`);
@@ -190,7 +191,7 @@ function runCmd(p){const c=p.cmd,cs=players[c.by];p.cmd=null;p.dis=true; // пр
  p.mv=0;p.act=p.bonus=false;p.path=[]}
 function resetGame(){if(g.phase!=='over')return;if(g.pend)clearTimeout(g.pend.timer);for(const k of ['voteT','restT','shopT','monT'])clearTimeout(g[k]);g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
-  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order','rage','rg','cmd','loh','sm','level','sx','asg','surge','reck','fs','xp','coins','team','vote','sr','rr','lvUp','core','freeLeave','afterMove'])delete p[k];
+  for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order','rage','rg','cmd','loh','sm','level','sx','asg','surge','reck','fs','xp','coins','team','vote','sr','rr','lvUp','core','freeLeave','afterMove','grab','mvSaved','holding','thrown'])delete p[k];
   p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});players.length=4;loadTerrain(BASE);mapBc();bc()}
 function startBattle(){g.phase='battle';g.round=1;const used=new Set();
  for(const p of players){let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y)||blocked(x,y));used.add(x+','+y);
@@ -198,7 +199,8 @@ function startBattle(){g.phase='battle';g.round=1;const used=new Set();
  g.order=players.map(p=>p.id).sort((a,b)=>players[b].init-players[a].init||players[b].st[1]-players[a].st[1]||a-b);
  g.turn=0;log('Бой начался! Инициатива: '+g.order.map(i=>`${players[i].name} ${players[i].init}`).join(', '));startTurn(players[g.order[0]])}
 const occ=(p,x,y)=>players.some(o=>o&&o.ready&&!o.dead&&o!==p&&o.x===x&&o.y===y);
-const zr=e=>{const w=ITEMS[e.eq.main];return w&&w.k==='w'&&w.f.reach&&!e.eq.off?2:1}; // без лишних объектов на каждый шаг
+const zr=e=>{if(e.isMon)return MONS[e.kind].reach&&!e.thrown?MONS[e.kind].reach:1;const w=ITEMS[e.eq.main]; // досягаемость монстра (багбир — 10 фт = 2 кл., пока не бросил молот)
+ return w&&w.k==='w'&&w.f.reach&&!e.eq.off?2:1}; // без лишних объектов на каждый шаг
 const zone=(e,c)=>{const d=dist(e,c);return d<=1||(d===2&&zr(e)===2&&!cover(e,c).blk)}; // досягаемость 2 не работает сквозь стену
 function bfs(p,tx,ty){const pass=!!RACES[p.race]?.pass,seen=new Set([p.x*N+p.y]);let fr=[{x:p.x,y:p.y,d:0,pr:null}];
  for(let h=0;h<fr.length;h++){const c=fr[h]; // индекс вместо shift()
@@ -207,12 +209,13 @@ function bfs(p,tx,ty){const pass=!!RACES[p.race]?.pass,seen=new Set([p.x*N+p.y])
   for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){if(!dx&&!dy)continue;const x=c.x+dx,y=c.y+dy,k=x*N+y;
    if(x<0||y<0||x>=N||y>=N||seen.has(k)||blockedFor(p,x,y)||(dx&&dy&&blockedFor(p,c.x+dx,c.y)&&blockedFor(p,c.x,c.y+dy))||(!pass&&occ(p,x,y)))continue;seen.add(k);fr.push({x,y,d:c.d+sc,pr:c})}}
  return null}
-function walk(p){while(p.path&&p.path.length){const c=p.path[0],prev={x:p.x,y:p.y};
- if(!p.dis){const prov=e=>e&&e.ready&&!e.dead&&!e.down&&!e.incap&&!e.noOA&&(g.mode==='panic'?!!e.isMon!==!!p.isMon:!e.isMon)&&e!==p&&e.react&&!(p.waive&&p.waive.has(e.id))&&zone(e,prev)&&!zone(e,c),e=players.find(prov); // монстры реакций не делают; в «Панике» союзники друг друга не провоцируют
+function walk(p){while(p.path&&p.path.length&&!p.grab){const c=p.path[0],prev={x:p.x,y:p.y};
+ if(!p.dis){const prov=e=>e&&e.ready&&!e.dead&&!e.down&&!e.incap&&!e.noOA&&(g.mode==='panic'?!!e.isMon!==!!p.isMon:!e.isMon)&&e!==p&&!(p.holding!=null&&e.id===p.holding)&&e.react&&!(p.waive&&p.waive.has(e.id))&&zone(e,prev)&&!zone(e,c),e=players.find(prov); // монстры реакций не делают; в «Панике» союзники друг друга не провоцируют
   if(e&&p.freeLeave>0){p.freeLeave--;p.waive=p.waive||new Set();players.filter(prov).forEach(x=>p.waive.add(x.id));log(`${p.name} ловко выскальзывает из зоны контроля — без провоцированной атаки`)}else 
-  if(e&&e.isMon){(p.waive=p.waive||new Set()).add(e.id);e.react=false;log(`${p.name} покидает зону ${e.name} — провоцированная атака`);g.actor=e.id;monAttack(e,p,()=>{if(!p.dead&&!p.down&&g.phase==='battle')walk(p);else p.path=[];bc()});return} // монстр атакует автоматически
+  if(e&&e.isMon){(p.waive=p.waive||new Set()).add(e.id);e.react=false;log(`${p.name} покидает зону ${e.name} — провоцированная атака`);g.actor=e.id;monAttack(e,p,()=>{if(!p.dead&&!p.down&&g.phase==='battle')walk(p);else p.path=[];bc()},e.kind==='bugbear'?bugW(e,p):null);return} // монстр атакует автоматически
   else if(e){(p.waive=p.waive||new Set()).add(e.id);g.pend={kind:'oa',mover:p.id,reactor:e.id,timer:setTimeout(()=>{try{if(g.pend&&g.pend.reactor===e.id)resolvePend(false);bc()}catch{}},15000)};log(`${p.name} покидает зону ${e.name}…`);return}}
- p.x=c.x;p.y=c.y;p.mv-=p.prone?2:1;p.path.shift();p.waive=null}
+ p.x=c.x;p.y=c.y;p.mv-=p.prone?2:1;p.path.shift();p.waive=null;
+  if(p.holding!=null){const v=players[p.holding];if(v&&v.grab&&v.grab.by===p.id&&!v.dead){v.x=prev.x;v.y=prev.y}}} // Похищение: схваченный перемещается вместе с багбиром без затрат движения
  p.path=[];if(p.afterMove){const f=p.afterMove;p.afterMove=null;f()}}
 function blessD(p){return p.bless&&p.bless.length?r(4):0} // Благословение: +1d4 к каждой атаке и спасброску (не складывается само с собой)
 function resD(p){if(!p.res||!p.res.length)return 0;const c=players[p.res[0]];p.res=[];if(c&&c.conc&&c.conc.spell==='resistance')endConc(c,'использовано');return r(4)} // Сопротивление: один раз, затем заклинание заканчивается
@@ -344,8 +347,12 @@ const MONS={
  // Гоблин-лучник: статблок гоблина-воина, но стреляет из лука (колющий, норма 16 кл. = 80 фт), держит дистанцию keep=7 кл. (35 фт) до ближайшего противника, провоцированных атак не делает (noOA)
  gobarcher:{n:'Гоблин-лучник',xp:50,ac:15,hp:()=>r(6)+r(6)+r(6),speed:6,st:[8,15,10,10,8,8],ini:2,hit:4,dice:[1,6,2],dt:'колющий',adv:[1,4],free:99,archer:1,keep:7,rng:16,noOA:1,tok:'m_gobarcher',col:'#5a9a3a'},
  wolf:{n:'Волк',xp:50,ac:12,hp:()=>r(8)+r(8)+2,speed:8,st:[14,15,12,3,12,6],ini:2,hit:4,dice:[1,6,2],dt:'колющий',prone:1,pack:1,tok:'m_wolf',col:'#8a8f99'},
- hobgoblin:{n:'Хобгоблин-воин',xp:100,ac:18,hp:()=>r(8)+r(8)+2,speed:6,st:[13,12,12,10,10,9],ini:3,hit:3,dice:[1,8,1],dt:'рубящий',tok:'m_hobgoblin',col:'#c9792e'}};
-const POOL=()=>['goblin','wolf','hobgoblin']; // стражи 1–2; монстры прошлых страж остаются доступными
+ hobgoblin:{n:'Хобгоблин-воин',xp:100,ac:18,hp:()=>r(8)+r(8)+2,speed:6,st:[13,12,12,10,10,9],ini:3,hit:3,dice:[1,8,1],dt:'рубящий',tok:'m_hobgoblin',col:'#c9792e'},
+ // Гигантский волчий паук (со 2 стражи): укус +5, 1d4+3 колющего и 2d4 ядом (extra). ИИ — обычный: идёт к ближайшей цели и атакует
+ spider:{n:'Гигантский волчий паук',xp:50,ac:13,hp:()=>r(8)+r(8)+2,speed:8,st:[12,16,13,3,12,4],ini:3,hit:5,dice:[1,4,3],dt:'колющий',extra:[2,4,'ядом'],tok:'m_spider',col:'#8a6a3a'},
+ // Багбир (с 3 стражи): досягаемость 10 фт (reach:2). Хватание +4, 2d6+2 дробящего, схваченный: скорость 0, СЛ 12 (действие). Лёгкий молот +4, 3d4+2, по схваченному — с преимуществом. Похищение — схваченный едет вместе с багбиром. Ранен ниже ½ и никого не держит — швыряет молот в радиусе 4 кл., дальше бьёт кулаками на 4 (bug:1)
+ bugbear:{n:'Багбир',xp:200,ac:14,hp:()=>{let h=6;for(let i=0;i<6;i++)h+=r(8);return h},speed:6,st:[15,14,13,8,11,9],ini:2,hit:4,dice:[2,6,2],dt:'дробящий',reach:2,bug:1,tok:'m_bugbear',col:'#b8741a'}};
+const POOL=()=>{const p=['goblin','wolf','hobgoblin'];if(g.watch>=2)p.push('spider');if(g.watch>=3)p.push('bugbear');return p}; // со 2 стражи — паук, с 3 — багбир; монстры прошлых страж остаются доступными
 // набор врагов на бюджет XP: случайный вид, случайное число (1–4, но не больше, чем хватает очков), круг за кругом; не хватает на выбранный — берём другой вид
 function pickGroup(budget,pool){const out=[];let left=budget;for(let g2=0;g2<60&&left>0;g2++){const aff=pool.filter(k=>MONS[k].xp<=left);if(!aff.length)break;const k=aff[r(aff.length)-1],n=Math.min(r(4),Math.floor(left/MONS[k].xp));for(let i=0;i<n;i++)out.push(k);left-=n*MONS[k].xp}return out}
 function mkMon(k,id,c,no){const M=MONS[k],hp=M.hp();return{id,isMon:true,team:1,kind:k,name:`${M.n} ${no}`,cls:'monster',race:'monster',level:1,ready:true,x:c.x,y:c.y,hp,maxhp:hp,ac:M.ac,st:M.st.slice(),speed:M.speed,mv:M.speed,xp:M.xp,disg:M.tok,color:M.col,eq:{main:'',off:'',armor:''},inv:{},prep:[],cant:[],thp:0,act:true,bonus:true,react:true,slots:0,style:'',init:d20({race:'monster'})+M.ini,freeLeave:M.free||0,noOA:!!M.noOA,ws:{readyState:0,send(){}}}}
@@ -374,7 +381,7 @@ function startMode(mode){g.mode=mode;
  for(const p of plist())p.team=0;
  g.watch=1;startWatch()}
 // ---------- стражи и паники ----------
-function clearStatus(p){if(p.conc)endConc(p,'конец паники');p.laugh=null;p.incap=false;p.prone=false;p.cmd=null;p.shielded=false;p.bless=[];p.sof=[];p.res=[];p.oil=0;p.slow=[];p.noheal=[];p.gb=null;p.dodge=false;p.rage=0;p.sm=null;p.surge=false;p.reck=false;p.thp=0;derive(p)}
+function clearStatus(p){if(p.conc)endConc(p,'конец паники');p.laugh=null;p.incap=false;p.prone=false;p.cmd=null;p.shielded=false;p.bless=[];p.sof=[];p.res=[];p.oil=0;p.slow=[];p.noheal=[];p.gb=null;p.dodge=false;p.rage=0;p.sm=null;p.surge=false;p.reck=false;p.grab=null;p.mvSaved=null;p.thp=0;derive(p)}
 function startWatch(){clearTimeout(g.shopT);g.panics=r(4);g.pn=0;setupCave();placePlayers();const n=g.panics,w=plural(n,'панику','паники','паник');
  banner({text:`Продержитесь ${n} ${w}`,sub:`Стража №${g.watch}`});log(`🛡 Стража №${g.watch}: продержитесь ${n} ${w}`);startPanic()}
 function startPanic(){clearTimeout(g.restT);g.pn++;const n=plist().length,budget=n*50+(g.watch-1)*50;g.budget=budget;
@@ -434,6 +441,7 @@ function monTurn(m){if(g.phase!=='battle'||players[g.order[g.turn]]!==m||m.dead)
  if(m.incap){log(`${m.name} недееспособен`);return end()}
  if(m.prone){m.mv=Math.max(0,m.mv-Math.floor(m.speed/2));m.prone=false;log(`${m.name} встаёт`)}
  if(MONS[m.kind].archer)return archTurn(m,end);
+ if(MONS[m.kind].bug)return bugTurn(m,end);
  const tg=pickTarget(m);if(!tg){log(`${m.name} не находит целей`);return end()}
  if(m.kind==='goblin'&&m.hp<m.maxhp&&r(2)===1)return monFlee(m,tg,end); // раненый гоблин с шансом 50% убегает на 30 фт (6 клеток)
  monGo(m,tg,end)}
@@ -442,17 +450,33 @@ function monFlee(m,tg,end,fb){const cells=reachAll(m,Math.min(m.mv,6),(a,b)=>dis
  for(const n of cells){const sc=[-dist(n,tg),-Math.hypot(n.x-tg.x,n.y-tg.y),n.d];if(!best||cmpA(sc,best.sc)<0)best={n,sc}}
  if(best&&(best.n.x!==m.x||best.n.y!==m.y)&&dist(best.n,tg)>dist(m,tg)){log(`${m.name} ранен и убегает от ${tg.name}`);m.path=routeTo(best.n);m.afterMove=end;return walk(m)}
  return fb?fb():monGo(m,tg,end)}
-function monGo(m,tg,end){const adj=t=>dist(m,t)<=1&&!cover(m,t).blk;if(adj(tg))return monStrike(m,tg,end);
+function monGo(m,tg,end){const RC=m.thrown?1:(MONS[m.kind].reach||1),adj=t=>dist(m,t)<=RC&&!cover(m,t).blk;if(adj(tg))return monStrike(m,tg,end);
  const Dt=field(m,tg),R=reachAll(m,m.mv).filter(n=>!occ(m,n.x,n.y));let best=null;
- for(const n of R){const dv=Dt[n.x*N+n.y];if(dv<0)continue;const sc=[dist(n,tg)<=1&&!cover(n,tg).blk?0:1,dv,n.d];if(!best||cmpA(sc,best.sc)<0)best={n,sc}}
+ for(const n of R){const dv=Dt[n.x*N+n.y];if(dv<0)continue;const sc=[dist(n,tg)<=RC&&!cover(n,tg).blk?0:1,dv,n.d];if(!best||cmpA(sc,best.sc)<0)best={n,sc}}
  if(!best||(best.n.x===m.x&&best.n.y===m.y)){log(`${m.name} не может подойти`);return monStrike(m,tg,end)}
  m.path=routeTo(best.n);m.afterMove=()=>monStrike(m,tg,end);walk(m)}
 function monStrike(m,tg,end){setTimeout(()=>{if(g.phase!=='battle'||players[g.order[g.turn]]!==m||m.dead)return;
- const adjs=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead&&dist(m,p)<=1&&!cover(m,p).blk);if(!adjs.length)return end();
+ const adjs=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead&&dist(m,p)<=(m.thrown?1:(MONS[m.kind].reach||1))&&!cover(m,p).blk);if(!adjs.length)return end();
  let t=adjs.includes(tg)?tg:adjs[0];const standing=adjs.filter(p=>!p.down);
  if(m.kind==='hobgoblin')t=(standing.length?standing:adjs).sort((a,b)=>(a.ac+(a.shielded?5:0))-(b.ac+(b.shielded?5:0)))[0]; // бьёт того, у кого меньше КД
  if(m.kind==='goblin'){const dn=adjs.filter(p=>p.down);if(dn.length)t=dn[0]}
- monAttack(m,t,end)},300)}
+ if(m.kind==='bugbear'&&m.holding!=null){const v=players[m.holding];if(v&&adjs.includes(v))t=v} // бьёт того, кого держит
+  monAttack(m,t,end,m.kind==='bugbear'?bugW(m,t):null)},300)}
+// ---------- багбир и хватка ----------
+// оружие багбира: молот брошен — кулаки (4 урона); никого не держит и цель свободна — Хватание; иначе лёгкий молот (по схваченному им — с преимуществом)
+function bugW(m,t){if(m.thrown)return{label:'кулаки',hit:4,dice:[0,0,4],dt:'дробящий'};
+ if(m.holding==null&&!t.grab)return{label:'хватание',hit:4,dice:[2,6,2],dt:'дробящий',grab:true};
+ return{label:'лёгкий молот',hit:4,dice:[3,4,2],dt:'дробящий',adv:!!(t.grab&&t.grab.by===m.id)}}
+function bugTurn(m,end){if(m.holding!=null){const v=players[m.holding];if(!v||v.dead||!v.grab||v.grab.by!==m.id)m.holding=null}
+ if(m.hp<m.maxhp/2&&m.holding==null&&!m.thrown){ // ранен, никого не держит, молот ещё при нём, в радиусе 4 кл. есть игрок — бросает молот (стоящего предпочитает)
+  const vis=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead&&dist(m,p)<=4&&!cover(m,p).blk),st=vis.filter(p=>!p.down),tg=(st.length?st:vis).sort((a,b)=>dist(m,a)-dist(m,b)||a.hp-b.hp)[0];
+  if(tg){log(`${m.name} швыряет лёгкий молот в ${tg.name}`);return setTimeout(()=>{if(g.phase!=='battle'||players[g.order[g.turn]]!==m||m.dead)return;
+   monAttack(m,tg,end,{label:'брошенный молот',hit:4,dice:[3,4,2],dt:'дробящий',ranged:true,rng:4,thrown:true,fx:'hammer'})},300)}}
+ const tg=pickTarget(m);if(!tg){log(`${m.name} не находит целей`);return end()}
+ monGo(m,tg,end)}
+function freeGrab(p,why){const g0=p.grab;if(!g0)return;const b=players[g0.by];if(b&&b.holding===p.id)b.holding=null;p.grab=null;
+ if(p.mvSaved!=null){if(players[g.order[g.turn]]===p)p.mv=p.mvSaved;p.mvSaved=null}if(why)log(`${p.name}: ${why}`)}
+function chkGrapple(){for(const p of players.slice(0,4)){if(!p||!p.grab)continue;const b=players[p.grab.by];if(!b||b.dead||b.down||b.incap||dist(b,p)>2)freeGrab(p,'хватка разжата')}} // схвативший пал/недееспособен или цель оказалась дальше 10 фт
 // ---------- лучник: держит 35 фт (7 кл.) до ближайшего стоящего противника и каждый ход стреляет по ближайшей видимой цели (по лежащим — только если стоящих нет) ----------
 function archTurn(m,end){const hs=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead),st=hs.filter(p=>!p.down),pool=st.length?st:hs;
  if(!pool.length){log(`${m.name} не находит целей`);return end()}
@@ -470,19 +494,21 @@ function archShoot(m,end){setTimeout(()=>{if(g.phase!=='battle'||players[g.order
  const hs=players.slice(0,4).filter(p=>p&&p.ready&&!p.dead&&!cover(m,p).blk),st=hs.filter(p=>!p.down),pool=st.length?st:hs;
  if(!pool.length){log(`${m.name} не видит целей`);return end()}
  monAttack(m,pool.sort((a,b)=>dist(m,a)-dist(m,b)||a.hp-b.hp)[0],end)},300)}
-function monAttack(m,t,end){const M=MONS[m.kind],gb=t.gb!=null;if(gb)t.gb=null;
- const rw=!!M.archer,cv=rw?cover(m,t):{blk:false,ac:0},dd=dist(m,t); // лук: укрытие +2/+5 КД, стена закрывает линию
+function monAttack(m,t,end,W){const M=MONS[m.kind],gb=t.gb!=null;if(gb)t.gb=null;if(W&&W.thrown)m.thrown=true;
+ const rw=!!(M.archer||(W&&W.ranged)),RNG=(W&&W.rng)||M.rng,cv=rw?cover(m,t):{blk:false,ac:0},dd=dist(m,t); // лук: укрытие +2/+5 КД, стена закрывает линию
  if(cv.blk){log(`${m.name} не может выстрелить: путь закрыт`);return end()}
  const pack=!!M.pack&&players.some(o=>o&&o.isMon&&o!==m&&!o.dead&&!o.incap&&dist(o,t)<=1); // Тактика стаи
- const adv=!!(t.down||(t.prone&&!rw)||gb||t.reck||pack),dis=!!(t.dodge||(rw&&(t.prone||dd<=1||dd>M.rng))); // дальнобойная: помеха по лежащим, вплотную и дальше нормы
+ const adv=!!(t.down||(t.prone&&!rw)||gb||t.reck||pack||(W&&W.adv)),dis=!!(t.dodge||(rw&&(t.prone||dd<=1||dd>RNG))); // дальнобойная: помеха по лежащим, вплотную и дальше нормы
  let a=r(20),rr='';
  if(adv!==dis){const b=r(20);rr=` (${adv?'преимущество':'помеха'} ${a}/${b})`;a=adv?Math.max(a,b):Math.min(a,b)}
- const total=a+M.hit,eac=t.ac+(t.shielded?5:0)+cv.ac,hit=a===20||(a!==1&&total>=eac),head=`${m.name} → ${t.name}${rw?' (лук)':''}: ${a}+${M.hit}=${total} vs КД ${eac}${cv.ac?` (укрытие +${cv.ac})`:''}${rr}${pack?' [тактика стаи]':''}`;
- fx(rw?{kind:'arrow',from:{x:m.x,y:m.y},to:{x:t.x,y:t.y},arc:1}:{kind:'ring',x:t.x,y:t.y,color:'#e55'}); // лук — стрела по дуге
+ const HIT=W?W.hit:M.hit,total=a+HIT,eac=t.ac+(t.shielded?5:0)+cv.ac,hit=a===20||(a!==1&&total>=eac),head=`${m.name} → ${t.name}${W&&W.label?' ('+W.label+')':rw?' (лук)':''}: ${a}+${HIT}=${total} vs КД ${eac}${cv.ac?` (укрытие +${cv.ac})`:''}${rr}${pack?' [тактика стаи]':''}`;
+ fx(W&&W.fx==='hammer'?{kind:'hammer',from:{x:m.x,y:m.y},to:{x:t.x,y:t.y}}:rw?{kind:'arrow',from:{x:m.x,y:m.y},to:{x:t.x,y:t.y},arc:1}:{kind:'ring',x:t.x,y:t.y,color:'#e55'}); // лук — стрела по дуге
  const fin=sh=>{if(sh||!hit){log(head+(sh?' — Щит! промах':' — промах'));return end()}
-  const crit=a===20,[n,sd,md]=M.dice;let dm=md,ex=0;for(let i=0;i<n*(crit?2:1);i++)dm+=r(sd);
+  const crit=a===20,[n,sd,md]=W?W.dice:M.dice;let dm=md,ex=0;for(let i=0;i<n*(crit?2:1);i++)dm+=r(sd);
   if(M.adv&&adv){for(let i=0;i<M.adv[0];i++)ex+=r(M.adv[1]);dm+=ex} // гоблин: при преимуществе +1d4
-  log(`${head} — ${crit?'КРИТ! ':'попал, '}урон ${dm}${ex?` (в т.ч. +${ex} за преимущество)`:''}`);hurt(t,dm,M.dt);
+  log(`${head} — ${crit?'КРИТ! ':'попал, '}урон ${dm}${ex?` (в т.ч. +${ex} за преимущество)`:''}`);const dt=W?W.dt:M.dt;let d2=0;if(M.extra)for(let i=0;i<M.extra[0]*(crit?2:1);i++)d2+=r(M.extra[1]); // паук: ещё 2d4 яда
+  if(d2){const ph=t.rage&&PHYS.includes(dt)?Math.floor(dm/2):dm;log(`  + ${d2} ${M.extra[2]}${ph!==dm?` · сопротивление Ярости: ${dm} → ${ph}`:''}`);hurt(t,ph+d2,M.extra[2])}else hurt(t,dm,dt);
+  if(W&&W.grab&&!t.dead&&!t.grab&&m.holding==null){t.grab={by:m.id};m.holding=t.id;t.mvSaved=t.mv;t.mv=0;log(`  ${t.name} схвачен — скорость 0; чтобы вырваться, нужно действие (СЛ 12)`)}
   if(M.prone&&!t.down&&!t.dead&&!t.prone){t.prone=true;log(`  ${t.name} сбит с ног`)} // укус волка: цель падает ничком
   if((t.dead||t.down)&&finished())next();end()};
  if(hit&&a!==20&&!t.shielded&&canShield(t)&&total<eac+5){askShield(t,m,fin);return}
@@ -501,13 +527,13 @@ function handle(p,m){g.actor=p.id;
  if(p.sm&&!(m.t==='cast'&&m.spell==='divinesmite'))p.sm=null; // окно Божественной кары — только сразу после попадания
  if(g.phase!=='battle'||players[g.order[g.turn]]!==p)throw Error('Не ваш ход');
  const need=(k)=>{if(!p[k])throw Error(k==='act'?'Действие уже потрачено':'Бонусное действие потрачено')};
-if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap','rage','rageext','layonhands','actionsurge'].includes(m.t))throw Error('Вы недееспособны');
+if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','stabilize','equip','throw','wbzap','rage','rageext','layonhands','actionsurge','escape'].includes(m.t))throw Error('Вы недееспособны');
  if(g.mode==='panic'){const ids=[m.target,...(Array.isArray(m.targets)?m.targets:[])].filter(Number.isInteger);
   if(ids.length){const help=['layonhands','medic','stabilize'].includes(m.t)||(m.t==='cast'&&HELPS.has(m.spell)),host=m.t==='attack'||m.t==='throw'||(m.t==='cast'&&!HELPS.has(m.spell));
    for(const id of ids){const t=players[id];if(!t)continue;if(host&&t.team===p.team)throw Error('Нельзя применять это против союзника');if(help&&t.team!==p.team)throw Error('Это применяется только на союзников')}}}
  switch(m.t){
  case'move':{const x=m.x,y=m.y;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Вне поля');
-  if(blocked(x,y))throw Error('Там стена или укрытие — клетка непроходима');
+  if(p.grab)throw Error('Вы схвачены: скорость 0. Потратьте действие, чтобы вырваться');if(blocked(x,y))throw Error('Там стена или укрытие — клетка непроходима');
   if(occ(p,x,y))throw Error('Клетка занята');const path=bfs(p,x,y);if(!path)throw Error('Нет пути: далеко или заблокировано');p.path=path;p.waive=null;walk(p);break}
  case'attack':{const wh=m.which==='off'?'off':'main';
   if(wh==='main'){need('act');const rk=!!m.reckless&&p.cls==='barbarian'&&p.level>=2&&!p.atkd&&!p.reck; // объявляется перед ПЕРВОЙ атакой хода
@@ -532,6 +558,11 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','cast','medic','st
   const h=Math.min(want,t.maxhp-t.hp);if(h<=0)throw Error('Цель здорова'); // тратится только реально восстановленное
   p.bonus=false;p.loh-=h;t.hp+=h;if(t.down){t.down=false;t.stable=false;t.dsL=t.dsD=0}
   fx({kind:'ring',x:t.x,y:t.y,color:'#ffe08a'});log(`🙌 ${p.name} возлагает руки на ${t.name}: +${h} хп (в пуле осталось ${p.loh})`);break}
+ case'escape':{need('act');if(!p.grab)throw Error('Вы не схвачены');
+  const sM=mod(p.st[0]),dM=mod(p.st[1]),useS=sM>=dM,w=useS?sM:dM;let v=d20(p),sh='';if(useS&&p.rage){const b=d20(p);sh=`${v}/${b}→`;v=Math.max(v,b)} // Ярость — преимущество на проверки Силы
+  const tot=v+w,txt=`${useS?'Атлетика (Сила)':'Акробатика (Ловкость)'}: ${sh}${v}${sg(w)}=${tot} vs СЛ 12`,hn=players[p.grab.by]?players[p.grab.by].name:'схватившего';
+  const done=ok=>{if(ok){freeGrab(p);log(`${p.name} вырывается из хватки ${hn} (${txt})`)}else log(`${p.name} не может вырваться (${txt})`)};
+  p.act=false;if(tot>=12)done(true);else if(p.cls==='fighter'&&p.level>=2&&p.sw>0&&tot+10>=12)askTM(p,tot,12,(ok,nt)=>done(ok));else done(false);break}
  case'actionsurge':{if(p.cls!=='fighter'||p.level<2)throw Error('Всплеск действий — умение воина 2 уровня');if(!(p.asg>0))throw Error('Всплеск действий уже использован');if(p.act)throw Error('Сначала потратьте обычное действие — Всплеск даёт ещё одно');
   p.asg--;p.act=true;p.surge=true;fx({kind:'ring',x:p.x,y:p.y,color:'#ffd166'});log(`⚡ ${p.name}: Всплеск действий — ещё одно действие (заклинание им сотворить нельзя)`);break}
  case'rage':{need('bonus');if(p.cls!=='barbarian')throw Error('Ярость доступна только варвару');if(p.rage)throw Error('Вы уже в ярости — её можно продлить');if(!(p.rg>0))throw Error('Заряды ярости кончились');
