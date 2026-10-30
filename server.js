@@ -105,11 +105,15 @@ const cantAll=p=>[...(p.cant||[]),...(p.mi?p.mi.cant:[])]; // заговоры �
 const sabFor=(p,k)=>p.sab!=null?p.sab:(p.mi&&(p.mi.cant.includes(k)||p.mi.spell===k)&&!(CLASSES[p.cls].slots&&((p.prep||[]).includes(k)||(p.cant||[]).includes(k)))?p.mi.stat:sab(p));
 const shSrc=t=>t.mi&&t.mi.spell==='shield'&&!t.mi.used?'free':(t.slots>0&&((t.prep||[]).includes('shield')||(t.mi&&t.mi.spell==='shield'))?'slot':null);
 // ---------- СОСТОЯНИЕ ----------
+const COVER={wall:{n:'Стена',full:true},three:{n:'Укрытие на 3/4',ac:5},half:{n:'Полуукрытие',ac:2},gate:{n:'Проход пещеры (только для врагов)',ac:0}};
+const CMDS={approach:'Подойди',drop:'Брось',flee:'Убегай',prone:'Падай',halt:'Стой'};
+const clean=(x,n)=>String(x==null?'':x).replace(/[<>&"'`\u0000-\u001f]/g,'').trim().slice(0,n); // имена показываются в HTML других игроков — спецсимволы убираем
+function createGame(RM){ // одна комната = одна независимая игра (своё состояние, карта, таймеры)
 const players=[null,null,null,null]; // 0–3 — игроки; с 4 — монстры режима «Паника гоблинов»
 let g={phase:'lobby',order:[],turn:0,log:[]};
 const sg=n=>(n>=0?'+':'')+n,J=JSON.stringify,log=s=>{g.log.push(s);if(g.log.length>120)g.log.splice(0,60)}; // клиентам уходят только последние 40 строк
 const pub=p=>p&&{id:p.id,name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cmd:!!p.cmd,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,grab:!!p.grab,hold:p.holding!=null,level:p.level,sx:p.sx,asg:p.asg,reck:!!p.reck,fs:p.fs,mon:!!p.isMon,xp:p.xp,vote:p.vote,sr:p.sr,rr:p.rr,lvUp:p.lvUp,coins:p.coins,ak:p.atkd,loh:p.loh,lm:p.cls==='paladin'?CLASSES.paladin.pool*p.level:0,sm:!!p.sm,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
-const bc=()=>{chkWB();chkGrapple();const m=J({t:'state',phase:g.phase,mode:g.mode,vleft:g.voteEnd?Math.max(0,Math.ceil((g.voteEnd-Date.now())/1000)):0,pn:g.mode==='panic'?{w:g.watch,n:g.panics,c:g.pn,b:g.budget,d:g.diff}:null,cave:g.cave||null,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover,target:g.pend.target,tot:g.pend.tot,dc:g.pend.dc,c:g.pend.cands,f:g.pend.from}:null,vk:g.vkind});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
+const bc=()=>{chkWB();chkGrapple();const m=J({t:'state',phase:g.phase,mode:g.mode,vleft:g.voteEnd?Math.max(0,Math.ceil((g.voteEnd-Date.now())/1000)):0,pn:g.mode==='panic'?{w:g.watch,n:g.panics,c:g.pn,b:g.budget,d:g.diff}:null,cave:g.cave||null,order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),room:{code:RM.code,name:RM.name,max:RM.max,host:RM.host,maxLv:RM.maxLv},pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover,target:g.pend.target,tot:g.pend.tot,dc:g.pend.dc,c:g.pend.cands,f:g.pend.from}:null,vk:g.vkind});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
 function derive(p){if(p.isMon)return;const M=p.st.map(mod),a=ITEMS[p.eq.armor];let ac=10+M[1]+(p.cls==='barbarian'&&!a?M[2]:0); // Защита без доспехов: 10 + Лов + Тел (щит разрешён)
@@ -136,7 +140,6 @@ const dist=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
 //   half  — полуукрытие: +2 к КД против дальнобойной атаки, летящей через него
 // Бонус нигде не «прилипает» к игроку: он считается заново для каждой атаки по линии «стрелок → цель».
 // Из нескольких укрытий на линии действует самое сильное (они не складываются).
-const COVER={wall:{n:'Стена',full:true},three:{n:'Укрытие на 3/4',ac:5},half:{n:'Полуукрытие',ac:2},gate:{n:'Проход пещеры (только для врагов)',ac:0}};
 const OBST=[
  // ДОБАВЛЯЙТЕ СТЕНЫ СЮДА, например: {x:12,y:9,t:'wall'}, {x:15,y:9,t:'three'}, {x:18,y:9,t:'half'},
 ];
@@ -172,7 +175,6 @@ function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];
  if(finished())return endBattle();
  const prevT=g.turn;do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);if(g.turn<=prevT)g.round=(g.round||1)+1; // круг очерёдности завершён — новый раунд
  const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q);if(q.cmd){runCmd(q);return next()}if(q.isMon)schedMon(q)}
-const CMDS={approach:'Подойди',drop:'Брось',flee:'Убегай',prone:'Падай',halt:'Стой'};
 // все клетки, до которых цель дойдёт за limit очков движения (те же правила, что у bfs: стены, существа, диагональ мимо двух стен)
 function reachAll(p,limit,ok){const pass=!!RACES[p.race]?.pass,start={x:p.x,y:p.y,d:0,pr:null},seen=new Map([[p.x*N+p.y,start]]),fr=[start];
  for(let h=0;h<fr.length;h++){const c=fr[h],sc=p.prone?2:1;if(c.d+sc>limit)continue;
@@ -192,14 +194,14 @@ function runCmd(p){const c=p.cmd,cs=players[c.by];p.cmd=null;p.dis=true; // пр
   if(better&&(best.x!==p.x||best.y!==p.y)){const route=[];for(let n=best;n.pr;n=n.pr)route.unshift({x:n.x,y:n.y});p.mv=limit;p.path=route;walk(p);fx({kind:'ring',x:p.x,y:p.y,color:'#ff8fa3'})}
   else log(`  ${p.name} не может ${c.opt==='approach'?'подойти ближе':'убежать дальше'}`)}
  p.mv=0;p.act=p.bonus=false;p.path=[]}
-function resetGame(){if(g.phase!=='over')return;if(g.pend)clearTimeout(g.pend.timer);for(const k of ['voteT','restT','shopT','monT'])clearTimeout(g[k]);g={phase:'lobby',order:[],turn:0,log:[],pend:null};
+function resetGame(){if(g.phase!=='over')return;if(g.pend)clearTimeout(g.pend.timer);for(const k of ['voteT','restT','shopT','monT','lvT'])clearTimeout(g[k]);RM.maxLv=undefined;g={phase:'lobby',order:[],turn:0,log:[],pend:null};
  players.forEach((p,i)=>{if(!p||p.ws.readyState!==1){players[i]=null;return}
   for(const k of ['st','style','inv','eq','x','y','hp','maxhp','ac','mv','act','bonus','sw','dodge','dead','init','race','atkd','react','dis','path','down','stable','dsL','dsD','feat','kit','hd','initBonus','savUsed','waive','sub','sab','wbOk','disg','cls','thp','slots','prep','prone','incap','conc','shielded','laugh','cant','disg','slow','noheal','oil','mi','lvl','gb','sof','bless','res','order','rage','rg','cmd','loh','sm','level','sx','asg','surge','reck','fs','xp','coins','team','vote','sr','rr','lvUp','core','freeLeave','afterMove','grab','mvSaved','holding','thrown'])delete p[k];
-  p.ready=false;p.name='Игрок'+(p.id+1);p.last=Date.now();p.ws.send(J({t:'reset'}))});players.length=4;loadTerrain(BASE);mapBc();bc()}
+  p.ready=false;p.name=p.nick||('Игрок'+(p.id+1));p.last=Date.now();p.ws.send(J({t:'reset'}))});players.length=4;loadTerrain(BASE);mapBc();fixHost();if(!plist().length)dispose();else bc()}
 function startBattle(){g.phase='battle';g.round=1;const used=new Set();
- for(const p of players){let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y)||blocked(x,y));used.add(x+','+y);
+ for(const p of players){if(!p)continue;let x,y;do{x=7+r(16);y=7+r(16)}while(used.has(x+','+y)||blocked(x,y));used.add(x+','+y);
   Object.assign(p,{x,y,init:d20(p)+mod(p.st[1])+p.initBonus,react:true,down:false})}
- g.order=players.map(p=>p.id).sort((a,b)=>players[b].init-players[a].init||players[b].st[1]-players[a].st[1]||a-b);
+ g.order=players.filter(Boolean).map(p=>p.id).sort((a,b)=>players[b].init-players[a].init||players[b].st[1]-players[a].st[1]||a-b);
  g.turn=0;log('Бой начался! Инициатива: '+g.order.map(i=>`${players[i].name} ${players[i].init}`).join(', '));startTurn(players[g.order[0]])}
 const occ=(p,x,y)=>players.some(o=>o&&o.ready&&!o.dead&&o!==p&&o.x===x&&o.y===y);
 const zr=e=>{if(e.isMon)return MONS[e.kind].reach&&!e.thrown?MONS[e.kind].reach:1;const w=ITEMS[e.eq.main]; // досягаемость монстра (багбир — 10 фт = 2 кл., пока не бросил молот)
@@ -336,7 +338,7 @@ const coreSig=c=>JSON.stringify([c.race,c.cls,c.feat,c.base,c.race==='elf'?[c.su
 function build(p,c,shop){
   const b=c.base;if(!Array.isArray(b)||b.length!==6||b.some(x=>!(x in COST)))throw Error('Неверные характеристики');
   const R=RACES[c.race];if(!R)throw Error('Выберите расу');const cl=CLASSES[c.cls];if(!cl||c.cls==='monster')throw Error('Выберите класс');const F=FEATS[c.feat];if(!F)throw Error('Выберите черту');if(b.some((x,i)=>x<R.start[i]||x>15))throw Error('Характеристика вне диапазона (макс. 15)');
-  const lv=c.level===undefined?1:c.level;if(!Number.isInteger(lv)||lv<1||lv>MAXLV)throw Error(`Уровень: от 1 до ${MAXLV}`);
+  const lv=c.level===undefined?1:c.level;if(!Number.isInteger(lv)||lv<1||lv>MAXLV)throw Error(`Уровень: от 1 до ${MAXLV}`);if(!shop&&RM.maxLv&&lv>RM.maxLv)throw Error(`Уровень персонажа (${lv}) выше допустимого в этой комнате (максимум ${RM.maxLv}${g.mode==='panic'?': в «Панике гоблинов» всегда 1 уровень':''})`);
   if(b.reduce((s,x,i)=>s+COST[x]-COST[R.start[i]],0)>27)throw Error('Больше 27 очков');
   if(c.cls==='fighter'&&!STYLES.includes(c.style))throw Error('Выберите боевой стиль');if(c.cls==='paladin'&&lv>=2&&!PSTYLES.includes(c.style))throw Error('Паладин: выберите боевой стиль');
   let esub=null,eab=null,exc=null;if(c.race==='elf'){esub=c.sub;if(!R.subs[esub])throw Error('Выберите подрасу эльфа');
@@ -349,7 +351,7 @@ function build(p,c,shop){
   const inv={};let spent=0;const budget=shop?(p.coins||0)+Object.entries(p.inv||{}).reduce((a,[k,n])=>a+(ITEMS[k]?ITEMS[k].c*n:0),0):150; /* между стражами можно перекупать: возврат полной цены */
   for(const k in c.inv||{}){const n=c.inv[k];if(!ITEMS[k]||!Number.isInteger(n)||n<0)throw Error('Неверный инвентарь');if(n){inv[k]=n;spent+=ITEMS[k].c*n}}
   if(spent>budget)throw Error('Не хватает монет');
-  Object.assign(p,{name:String(c.name||p.name).slice(0,16),st:b.map((x,i)=>x+(F.ab===i?1:0)+(mi&&mi.stat===i?1:0)),race:c.race,cls:c.cls,order:c.cls==='cleric'?c.order:null,feat:c.feat,style:c.style,inv,eq:{main:c.eq?.main||'',off:c.eq?.off||'',armor:c.eq?.armor||''}});
+  Object.assign(p,{name:clean(c.name,16)||p.name,st:b.map((x,i)=>x+(F.ab===i?1:0)+(mi&&mi.stat===i?1:0)),race:c.race,cls:c.cls,order:c.cls==='cleric'?c.order:null,feat:c.feat,style:c.style,inv,eq:{main:c.eq?.main||'',off:c.eq?.off||'',armor:c.eq?.armor||''}});
   p.sub=esub;p.sab=eab;p.mi=mi;p.lvl=false;const e=eqOk(p,p.eq);if(e)throw Error(e);
   if(c.cls!=='fighter'&&!(c.cls==='paladin'&&lv>=2))p.style='';
   if(Object.keys(p.inv).some(k=>(ITEMS[k].k==='a'&&!armOk(p,ITEMS[k]))||(ITEMS[k].k==='s'&&!cl.shield)))throw Error('Класс не владеет этим доспехом или щитом');
@@ -391,18 +393,19 @@ function spawnCells(n){const cv=g.cave,cx=cv.x+2,out=[],taken=c=>players.some(o=
 function finished(){if(g.mode==='panic')return !players.slice(0,4).some(p=>p&&p.ready&&!p.dead&&!p.down)||!players.some(o=>o&&o.isMon&&!o.dead);return alive().length<=1}
 function endBattle(){if(g.mode==='panic')return panicEnd();g.phase='over';setTimeout(resetGame,6000);const w=alive()[0];log(w?`🏆 Победил ${w.name}!`:'Все пали.')}
 // ---------- голосование ----------
-function startVote(){g.phase='vote';g.vkind='mode';g.diff=undefined;g.mode=undefined;g.votes={};for(const p of plist())p.vote=undefined;g.voteEnd=Date.now()+25000;clearTimeout(g.voteT);g.voteT=setTimeout(resolveVote,25000);log('Все готовы! Голосование: «Флет» или «Паника гоблинов»');bc()}
+function startVote(){g.phase='vote';g.vkind='mode';g.diff=undefined;g.mode=undefined;g.votes={};for(const p of plist())p.vote=undefined;g.voteEnd=Date.now()+25000;clearTimeout(g.voteT);g.voteT=setTimeout(resolveVote,25000);log('Хост начал игру. Голосование: «Флет» или «Паника гоблинов»');bc()}
 function startDiffVote(){g.phase='vote';g.vkind='diff';g.votes={};for(const p of plist())p.vote=undefined;g.voteEnd=Date.now()+25000;clearTimeout(g.voteT);g.voteT=setTimeout(resolveVote,25000);log('Режим «Паника гоблинов». Голосование за сложность: «Хард» или «Обычная»');bc()}
 function resolveVote(){if(g.phase!=='vote')return;clearTimeout(g.voteT);g.voteEnd=0;
  if(g.vkind==='diff'){const c={hard:0,normal:0};for(const v of Object.values(g.votes))if(v in c)c[v]++;const d=c.hard>c.normal?'hard':c.normal>c.hard?'normal':['hard','normal'][r(2)-1];g.diff=d;
-  log(`Сложность: Хард ${c.hard} · Обычная ${c.normal} → ${d==='hard'?'Хард':'Обычная'}${c.hard===c.normal?' (ничья — жребий)':''}`);return startMode('panic')}
+  log(`Сложность: Хард ${c.hard} · Обычная ${c.normal} → ${d==='hard'?'Хард':'Обычная'}${c.hard===c.normal?' (ничья — жребий)':''}`);return enterCreate('panic')}
  const c={flat:0,panic:0};for(const v of Object.values(g.votes))c[v]++;
  const mode=c.flat>c.panic?'flat':c.panic>c.flat?'panic':['flat','panic'][r(2)-1];
- log(`Голосование: Флет ${c.flat} · Паника гоблинов ${c.panic} → ${mode==='panic'?'Паника гоблинов':'Флет'}${c.flat===c.panic?' (ничья — жребий)':''}`);if(mode==='panic')return startDiffVote();startMode(mode)}
-function startMode(mode){g.mode=mode;
- if(mode==='flat'){loadTerrain(BASE);g.cave=null;mapBc();return startBattle()}
- for(const p of players.slice(0,4).filter(p=>p&&p.level>1)){try{p.ws.send(J({t:'err',m:'В режим «Паника гоблинов» нельзя заходить персонажем выше 1 уровня — вы исключены'}))}catch{}players[p.id]=null;try{p.ws.close()}catch{}}
- if(!plist().length){g.phase='over';return resetGame()}
+ log(`Голосование: Флет ${c.flat} · Паника гоблинов ${c.panic} → ${mode==='panic'?'Паника гоблинов':'Флет'}${c.flat===c.panic?' (ничья — жребий)':''}`);if(mode==='panic')return startDiffVote();startSetLv()}
+// ---------- комната: после голосования — (Флет) хост задаёт макс. уровень → создание персонажей → старт ----------
+function startSetLv(){g.mode='flat';g.phase='setlv';clearTimeout(g.lvT);g.lvT=setTimeout(()=>{if(g.phase==='setlv'){RM.maxLv=MAXLV;log(`Хост не выбрал — максимальный уровень: ${MAXLV}`);enterCreate('flat')}},60000);log('Режим «Флет». Хост выбирает максимальный уровень персонажей');bc()}
+function enterCreate(mode){g.mode=mode;g.phase='create';clearTimeout(g.lvT);RM.maxLv=mode==='panic'?1:(RM.maxLv||MAXLV);for(const p of plist()){p.ready=false;p.xp=0}
+ log(`Создание персонажей · максимальный уровень: ${RM.maxLv}${mode==='panic'?' («Паника гоблинов» — всегда 1 уровень)':''}`);if(plist().every(p=>p.ready))return beginMatch();bc()}
+function beginMatch(){if(g.mode==='flat'){loadTerrain(BASE);g.cave=null;mapBc();return startBattle()}
  for(const p of plist())p.team=0;
  g.watch=1;startWatch()}
 // ---------- стражи и паники ----------
@@ -447,7 +450,7 @@ function shopSubmit(p,c){if(g.phase!=='shop'||p.sr)return;if(coreSig(c)!==p.core
  const bak={...p};try{build(p,c,true)}catch(e){Object.assign(p,bak);throw e}
  p.sr=true;if(lvn>bak.level){p.lvUp=false;log(`⭐ ${p.name} достигает ${p.level} уровня!`)}checkShop()}
 function checkShop(){if(g.phase!=='shop')return;if(plist().every(p=>p.sr)){clearTimeout(g.shopT);startWatch()}else bc()}
-function afterLeave(){if(g.phase==='vote'){if(plist().every(p=>p.vote))resolveVote()}else if(g.phase==='rest')checkRest();else if(g.phase==='shop')checkShop()}
+function afterLeave(){if(g.phase==='vote'){if(plist().every(p=>p.vote))resolveVote()}else if(g.phase==='create'){if(plist().every(p=>p.ready))beginMatch()}else if(g.phase==='rest')checkRest();else if(g.phase==='shop')checkShop()}
 // ---------- ИИ монстров ----------
 function monDie(t){t.dead=true;t.hp=0;const k=players[g.actor];fx({kind:'ring',x:t.x,y:t.y,color:'#999'});
  if(k&&!k.isMon){k.xp=(k.xp||0)+t.xp;log(`☠ ${t.name} повержен: +${t.xp} XP → ${k.name} (${k.xp}/${LVXP})`)}else log(`☠ ${t.name} повержен`)}
@@ -539,9 +542,11 @@ function monAttack(m,t,end,W){const M=MONS[m.kind],gb=t.gb!=null;if(gb)t.gb=null
  fin(false)}
 
 function handle(p,m){g.actor=p.id;
- if(m.t==='ready'){if(g.phase!=='lobby'||p.ready)return;build(p,m.c||{},false);p.xp=0;p.ready=true;
-  if(players.slice(0,4).filter(x=>x&&x.ready).length===4)startVote();return bc()}
- if(m.t==='vote'){if(g.phase!=='vote'||!(g.vkind==='diff'?['hard','normal']:['flat','panic']).includes(m.mode))return;g.votes[p.id]=m.mode;p.vote=m.mode;if(plist().every(x=>x.vote))resolveVote();else bc();return}
+ if(m.t==='start'){if(p.id!==RM.host)throw Error('Начать игру может только хост комнаты');if(g.phase!=='lobby')return;startVote();return}
+ if(m.t==='maxlv'){if(p.id!==RM.host)throw Error('Максимальный уровень задаёт только хост');if(g.phase!=='setlv')return;const v=m.v;if(!Number.isInteger(v)||v<1||v>MAXLV)throw Error(`Уровень: от 1 до ${MAXLV}`);RM.maxLv=v;enterCreate('flat');return}
+ if(m.t==='ready'){if(g.phase!=='create'||p.ready)return;build(p,m.c||{},false);p.xp=0;p.ready=true;
+  if(plist().every(x=>x.ready))beginMatch();return bc()}
+ if(m.t==='vote'){if(g.phase!=='vote'||!(g.vkind==='diff'?['hard','normal']:['flat','panic']).includes(m.mode))return;if(m.mode==='flat'&&plist().length<2)throw Error('«Флет» — минимум 2 игрока в комнате');g.votes[p.id]=m.mode;p.vote=m.mode;if(plist().every(x=>x.vote))resolveVote();else bc();return}
  if(m.t==='hitdie')return hitDie(p);
  if(m.t==='restready'){if(g.phase!=='rest'||p.dead)return;p.rr=true;return checkRest()}
  if(m.t==='shop')return shopSubmit(p,m.c||{});
@@ -698,12 +703,44 @@ if(p.incap&&['attack','dash','disengage','dodge','secondwind','potion','cast','m
  default:return}
  bc()}
 // ---------- HTTP + WS ----------
-setInterval(()=>{if(g.phase!=='battle')return;const now=Date.now(),cur=players[g.order[g.turn]];let ch=false;
- for(const p of players)if(p&&!p.dead&&p.ready&&now-p.last>IDLE){p.dead=true;p.hp=0;ch=true;log(`${p.name} бездействует 5 мин — выбывает`);try{p.ws.close()}catch{}}
- if(g.pend&&(players[g.pend.mover].dead||players[g.pend.reactor].dead)){resolvePend(false);ch=true}
- if(g.phase==='battle'&&(finished()||(cur&&cur.dead))){next();ch=true}if(ch)bc()},30000); // рассылка только если что-то изменилось
-// keep-alive: лёгкий ping-кадр вместо полного состояния; не ответившее соединение закрывается
-setInterval(()=>{for(const p of players)if(p&&p.ws.readyState===1){if(p.pong===false){p.ws.terminate();continue}p.pong=false;p.ws.ping()}},25000);
+// ---------- комната: вход/выход игроков, простой, закрытие ----------
+const DEAD={readyState:3,send(){},close(){}};
+function fixHost(){if(!players[RM.host]||players[RM.host].ws.readyState!==1){const i=players.slice(0,4).findIndex(x=>x&&x.ws.readyState===1);if(i>=0)RM.host=i}}
+function addPlayer(ws,nick){const id=[0,1,2,3].slice(0,RM.max).find(i=>!players[i]);if(id==null)return null;const nk=clean(nick,16)||('Игрок'+(id+1));
+ const p=players[id]={id,ws,last:Date.now(),ready:false,nick:nk,name:nk,color:`hsl(${id*90+r(40)} 70% 50%)`};fixHost();if(RM.host==null||!players[RM.host])RM.host=id;return p}
+function dispose(){for(const k of ['voteT','restT','shopT','monT','lvT'])clearTimeout(g[k]);if(g.pend)clearTimeout(g.pend.timer);for(const m of players)if(m&&m.wd)clearTimeout(m.wd);g.phase='dead';if(RM.onDestroy)RM.onDestroy()}
+function leave(p){const id=p.id;if(players[id]!==p||g.phase==='dead')return;p.ws=DEAD;const pre=['lobby','vote','setlv','create'].includes(g.phase);
+ if(pre)players[id]=null;
+ else if(!p.dead){p.dead=true;p.hp=0;log(`${p.name} отключился`);if(g.pend&&(g.pend.mover===p.id||g.pend.reactor===p.id))resolvePend(false);if(finished()||players[g.order[g.turn]]===p)next()}
+ if(!plist().length)return dispose();
+ fixHost();if(g.phase!=='lobby')afterLeave();bc()}
+function tick(){if(g.phase==='dead')return;const now=Date.now();
+ if(g.phase==='battle'){const cur=players[g.order[g.turn]];let ch=false;
+  for(const p of players)if(p&&!p.dead&&p.ready&&now-p.last>IDLE){p.dead=true;p.hp=0;ch=true;log(`${p.name} бездействует 5 мин — выбывает`);try{p.ws.close()}catch{}}
+  if(g.pend&&(players[g.pend.mover].dead||players[g.pend.reactor].dead)){resolvePend(false);ch=true}
+  if(g.phase==='battle'&&(finished()||(cur&&cur.dead))){next();ch=true}if(ch)bc()} // рассылка только если что-то изменилось
+ else if(g.phase!=='over')for(const p of plist())if(now-p.last>IDLE*3){try{p.ws.close()}catch{}} // зал ожидания/создание: отключаем тех, кто молчит 15 мин
+}
+return{R:RM,players,get g(){return g},handle,bc,mapBc,tick,leave,addPlayer,dispose,count:()=>plist().length,terrList};
+}
+// ---------- HTTP + WS: комнаты ----------
+const J=JSON.stringify;
+const rooms=new Map(),conns=new Set(),CODEABC='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const mkCode=()=>{let c;do{c=Array.from({length:4},()=>CODEABC[Math.floor(Math.random()*CODEABC.length)]).join('')}while(rooms.has(c));return c};
+const roomsList=()=>[...rooms.values()].map(G=>({code:G.R.code,name:G.R.name,n:G.count(),max:G.R.max,phase:G.g.phase,host:(G.players[G.R.host]||{}).name||'—'}));
+const pushRooms=()=>{const m=J({t:'rooms',list:roomsList()});for(const c of conns)if(!c.G&&c.ws.readyState===1)c.ws.send(m)};
+function joinRoom(c,G,nick){const p=G.addPlayer(c.ws,nick);if(!p)return c.ws.send(J({t:'err',m:'Комната заполнена'}));
+ c.p=p;c.G=G;c.ws.send(J({t:'joined',id:p.id,code:G.R.code,nick:p.nick}));G.mapBc();G.bc();pushRooms()}
+function leaveRoom(c,notify){const G=c.G,p=c.p;c.G=null;c.p=null;if(G&&p)G.leave(p);if(notify&&c.ws.readyState===1){c.ws.send(J({t:'left'}));c.ws.send(J({t:'rooms',list:roomsList()}))}pushRooms()}
+function onMenu(c,m){
+ if(m.t==='rooms')return c.ws.send(J({t:'rooms',list:roomsList()}));
+ if(m.t==='create'){const max=m.max,name=clean(m.name,24);if(!Number.isInteger(max)||max<1||max>4)throw Error('Число игроков: от 1 до 4');
+  if(rooms.size>=200)throw Error('Слишком много комнат, попробуйте позже');const code=mkCode(),G=createGame({code,name:name||('Комната '+code),max,host:null,onDestroy:()=>{rooms.delete(code);pushRooms()}});rooms.set(code,G);return joinRoom(c,G,m.nick)}
+ if(m.t==='join'){const code=String(m.code||'').trim().toUpperCase(),G=rooms.get(code);if(!G)throw Error('Комната не найдена');
+  if(G.g.phase!=='lobby')throw Error('В этой комнате игра уже идёт');if(G.count()>=G.R.max)throw Error('Комната заполнена');return joinRoom(c,G,m.nick)}}
+setInterval(()=>{for(const G of rooms.values())try{G.tick()}catch(e){console.error('tick',e)}},30000);
+// keep-alive: лёгкий ping-кадр; не ответившее соединение закрывается
+setInterval(()=>{for(const c of conns){if(c.ws.readyState!==1)continue;if(c.pong===false){c.ws.terminate();continue}c.pong=false;c.ws.ping()}},25000);
 const PAGE=['public/index.html','index.html'].map(f=>path.join(__dirname,f)).find(f=>fs.existsSync(f));
 const zlib=require('zlib'),crypto=require('crypto');let HTML=null,GZ=null,TAG='';
 if(PAGE){HTML=fs.readFileSync(PAGE);GZ=zlib.gzipSync(HTML,{level:9});TAG='"'+crypto.createHash('md5').update(HTML).digest('hex')+'"'} // страница читается и сжимается один раз при старте
@@ -715,12 +752,12 @@ const srv=http.createServer((q,s)=>{
  s.writeHead(200,{'Content-Type':'text/html; charset=utf-8',ETag:TAG,'Cache-Control':'no-cache',Vary:'Accept-Encoding',...(gz?{'Content-Encoding':'gzip'}:{})});s.end(gz?GZ:HTML)});
 const wss=new WebSocketServer({server:srv,maxPayload:65536});
 wss.on('connection',ws=>{
- const id=players.slice(0,4).findIndex(x=>!x);
- if(g.phase!=='lobby'||id<0){ws.send(J({t:'err',m:'Игра уже идёт или мест нет'}));return ws.close()}
- const p=players[id]={id,ws,pong:true,last:Date.now(),ready:false,name:'Игрок'+(id+1),color:`hsl(${id*90+r(40)} 70% 50%)`};
- ws.send(J({t:'init',id,ITEMS,COST,N,SPEED,RACES,FEATS,SPELLS,CANTRIPS,MI,CLASSES:Object.fromEntries(Object.entries(CLASSES).filter(([k])=>k!=='monster')),COVER,CMDS,OBST:terrList(),MAXLV}));bc();
- ws.on('close',()=>{if(g.phase==='lobby'){players[id]=null}else if(!p.dead){p.dead=true;p.hp=0;log(`${p.name} отключился`);if(g.pend&&(g.pend.mover===p.id||g.pend.reactor===p.id))resolvePend(false);if(finished()||players[g.order[g.turn]]===p)next()}
-  if(g.phase!=='lobby'&&!players.slice(0,4).some(x=>x&&x.ws.readyState===1)){g.phase='over';resetGame()}else if(g.phase!=='lobby')afterLeave();bc()});
- ws.on('pong',()=>{p.pong=true});
- ws.on('message',raw=>{p.last=Date.now();let m;try{m=JSON.parse(raw)}catch{return}try{handle(p,m)}catch(e){err(p,e.message)}})});
+ const c={ws,p:null,G:null,pong:true};conns.add(c);
+ ws.send(J({t:'init',ITEMS,COST,N,SPEED,RACES,FEATS,SPELLS,CANTRIPS,MI,CLASSES:Object.fromEntries(Object.entries(CLASSES).filter(([k])=>k!=='monster')),COVER,CMDS,MAXLV}));ws.send(J({t:'rooms',list:roomsList()}));
+ ws.on('close',()=>{conns.delete(c);leaveRoom(c,false)});
+ ws.on('pong',()=>{c.pong=true});
+ ws.on('message',raw=>{let m;try{m=JSON.parse(raw)}catch{return}if(!m||typeof m.t!=='string')return;
+  try{if(c.p)c.p.last=Date.now();
+   if(m.t==='leave'){if(c.G)leaveRoom(c,true);return}
+   if(c.G&&c.p)c.G.handle(c.p,m);else onMenu(c,m)}catch(e){try{ws.send(J({t:'err',m:e.message}))}catch{}}})});
 srv.listen(process.env.PORT||3000,()=>console.log('http://localhost:3000'));
