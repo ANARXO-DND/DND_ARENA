@@ -226,7 +226,7 @@ if(process.env.DEMO_COVER==='1')OBST.push( // демо-расстановка д
  ...[9,10,11,12,13].map(x=>({x,y:13,t:'wall'})),{x:17,y:13,t:'three'},{x:18,y:13,t:'three'},
  {x:10,y:17,t:'half'},{x:11,y:17,t:'half'},{x:12,y:17,t:'half'},{x:16,y:17,t:'wall'},{x:16,y:18,t:'wall'});
 const terrain=new Map(OBST.filter(o=>COVER[o.t]&&Number.isInteger(o.x)&&Number.isInteger(o.y)&&o.x>=0&&o.y>=0&&o.x<N&&o.y<N).map(o=>[o.x*N+o.y,o.t]));
-const terrList=()=>[...terrain].map(([k,t])=>g.obst&&g.obst.has(k)?{x:Math.floor(k/N),y:k%N,t,tr:1}:{x:Math.floor(k/N),y:k%N,t});
+const terrList=()=>[...terrain].map(([k,t])=>g.trees&&g.trees.has(k)?{x:Math.floor(k/N),y:k%N,t,tr:1}:{x:Math.floor(k/N),y:k%N,t});
 const blocked=(x,y)=>terrain.has(x*N+y),blockedFor=(p,x,y)=>{const t=terrain.get(x*N+y);return !!t&&!(t==='gate'&&p.isMon)},fullAt=(x,y)=>{const t=terrain.get(x*N+y);return !!t&&!!COVER[t].full};
 // Линия от клетки a к клетке b (целочисленный обход сетки): {blk:true} — путь закрыт стеной; иначе {ac} — бонус КД от лучшего укрытия на пути.
 // Концевые клетки не учитываются (там стоят существа). Диагональ через угол «щели» между двумя стенами тоже закрыта.
@@ -679,13 +679,13 @@ function loadTerrain(map){terrain.clear();for(const[k,v]of map)terrain.set(k,v)}
 function mapBc(){const m=J({t:'map',list:terrList(),cave:g.cave||null});for(const p of plist())p.ws.send(m)}
 function banner(o){const m=J({t:'banner',...o});for(const p of plist())p.ws.send(m)}
 // Препятствия «Паники гоблинов» (деревья): 35 линий по 3–5 клеток (горизонтально/вертикально, у каждой клетки свой тип укрытия: полное / 3/4 / 1/2) и 10 отдельных деревьев (3/4). Создаются на 1 страже и не меняются до конца игры
-function genObst(){if(process.env.DND_NOOBST){g.obst=new Map();return}let ob=null;for(let tries=0;tries<40;tries++){ob=new Map();const T=['wall','three','half'],free=(x,y)=>x>=0&&y>=9&&x<N&&y<N&&!ob.has(x*N+y);
+function genObst(){if(process.env.DND_NOOBST){g.obst=new Map();g.trees=new Set();return}let ob=null,tr=null;for(let tries=0;tries<40;tries++){ob=new Map();tr=new Set();const T=['wall','three','half'],free=(x,y)=>x>=0&&y>=9&&x<N&&y<N&&!ob.has(x*N+y);
   for(let n=0;n<35;n++)for(let t=0;t<80;t++){const len=2+r(3),hor=r(2)===1,x0=r(N)-1,y0=9+r(N-9)-1,cs=[];for(let i=0;i<len;i++)cs.push([x0+(hor?i:0),y0+(hor?0:i)]);if(cs.every(([x,y])=>free(x,y))){cs.forEach(([x,y])=>ob.set(x*N+y,T[r(3)-1]));break}}
-  for(let n=0;n<10;n++)for(let t=0;t<80;t++){const x=r(N)-1,y=9+r(N-9)-1;if(free(x,y)){ob.set(x*N+y,'three');break}}
+  for(let n=0;n<10;n++)for(let t=0;t<80;t++){const x=r(N)-1,y=9+r(N-9)-1;if(free(x,y)){ob.set(x*N+y,'three');tr.add(x*N+y);break}}
   const seen=new Set(),q=[];for(let x=0;x<N;x++)if(!ob.has(x*N+8)){seen.add(x*N+8);q.push([x,8])}
   while(q.length){const[x,y]=q.pop();for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const a=x+dx,b=y+dy,k=a*N+b;if(a<0||b<8||a>=N||b>=N||seen.has(k)||ob.has(k))continue;seen.add(k);q.push([a,b])}}
   let fr=0;for(let x=0;x<N;x++)for(let y=9;y<N;y++)if(!ob.has(x*N+y))fr++;let rc=0;for(const k of seen)if(k%N>=9)rc++;if(rc>=fr*.95)break} // карта должна оставаться проходимой
- g.obst=ob}
+ g.obst=ob;g.trees=tr}
 function setupCave(){loadTerrain(new Map(g.obst||[]));const x0=r(N-6)-1;for(let y=0;y<7;y++){terrain.set(x0*N+y,'wall');terrain.set((x0+6)*N+y,'wall');for(let i=1;i<=5;i++)terrain.set((x0+i)*N+y,y<6?'wall':'gate')}g.cave={x:x0+1,y:0,w:5,h:7};mapBc()}
 function placePlayers(){const used=new Set();for(const p of plist()){let x,y,t=0;do{x=1+r(N-4);y=N-9+r(7)-1;t++}while((used.has(x+','+y)||blocked(x,y))&&t<300);used.add(x+','+y);p.x=x;p.y=y}}
 function spawnCells(n){const cv=g.cave,cx=cv.x+2,out=[],taken=c=>players.some(o=>o&&o.ready&&!o.dead&&o.x===c.x&&o.y===c.y)||out.some(o=>o.x===c.x&&o.y===c.y);
