@@ -21,12 +21,14 @@ const ITEMS={
  shortbow:W('Короткий лук',[1,6],'колющий',{two:1,rng:16,arc:1},25),
  longbow:W('Длинный лук',[1,8],'колющий',{two:1,heavy:1,rng:30,arc:1},50),
  hcross:W('Тяжёлый арбалет',[1,10],'колющий',{two:1,heavy:1,rng:20},50),
+ musket:W('Мушкет',[1,12],'колющий',{two:1,rng:8,lr:3,gun:1},350), // воинское, двуручное, 40 фт (8 кл.), с помехой до 120 фт (24 кл.); урон d12 + Ловкость
+ pistol:W('Пистоль',[1,10],'колющий',{rng:6,lr:3,gun:1},200), // воинское, одноручное (щит можно), 30 фт (6 кл.), с помехой до 90 фт (18 кл.); урон d10 + Ловкость
  oil:{k:'t',n:'Масло',c:1,c1:'#e8922a',c2:'#7a4a1e',desc:'Действие, бросок на 4 кл.: спасбросок Ловкости (СЛ 8 + Лов + мастерство). При провале цель в масле 10 ходов: первый урон огнём +5 огнём, масло сгорает. Тратится при броске.'},
  acid:{k:'t',n:'Кислота',c:25,c1:'#6fd23a',c2:'#3b5a24',desc:'Действие, бросок на 4 кл.: спасбросок Ловкости (СЛ 8 + Лов + мастерство), при провале 2d6 кислотой, при успехе урона нет. Тратится при броске.'},
  potion:{k:'p',n:'Зелье лечения',c:50,desc:'Бонусное действие: выпить — восстанавливает 2d4+2 хита. Одноразовое: после использования не восстанавливается (новое — только за монеты в магазине).'},
  caltrops:{k:'h',n:'Калтропы',c:1,hz:'cal',desc:'Действие: рассыпать на любой клетке в радиусе 5 фт (клетка помечается серыми крестиками). Действует на всех — и на игроков, и на монстров: существо, наступившее на клетку, делает спасбросок Силы (СЛ 15); при провале оно теряет всю скорость до конца своего следующего хода и получает 1 колющего урона. Остаются на поле до конца паники/боя.'},
  bearings:{k:'h',n:'Шарики',c:1,hz:'bb',desc:'Действие: рассыпать рядом (в радиусе 5 фт) квадрат 2×2 клетки перед собой (серые кружочки). Животные (крыса, волк, паук) делают спасбросок Ловкости (СЛ 15): при провале их перемещение в этом ходу падает до нуля, а в следующем ходу скорость вдвое меньше. Остальные существа замедляются: клетка шариков стоит 2 клетки перемещения. Игрок, входя на шарики, выбирает: спасбросок Ловкости (СЛ 15; успех — шарики не действуют до конца хода) или гарантированное замедление. Остаются на поле до конца паники/боя.'}};
-for(const k of ['dagger','shortbow'])ITEMS[k].cat='simple';for(const k of ['shortsword','rapier','longsword','halberd','greatsword','longbow','hcross'])ITEMS[k].cat='martial';
+for(const k of ['dagger','shortbow'])ITEMS[k].cat='simple';for(const k of ['shortsword','rapier','longsword','halberd','greatsword','longbow','hcross','musket','pistol'])ITEMS[k].cat='martial';
 for(const k of ['halfplate','scale','chainmail','plate'])ITEMS[k].metal=1; // металлическая броня (Электрошок)
 const COST={8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9},STYLES=['def','duel','gwf','twf','arch'],PSTYLES=['def','duel','gwf','prot','blessed']; // стили паладина (без «Двух оружий»; Protection и Blessed Warrior — только у него)
 // ---------- КЛАСС (заготовка под другие классы) ----------
@@ -42,7 +44,7 @@ const CLASSES={
  // castStat 5 — Харизма; pool — Возложение рук: 5 хитов × уровень паладина.
  paladin:{name:'Паладин',hitDie:10,prof:2,saves:[4,5],weapons:['simple','martial'],armor:['light','medium','heavy'],shield:true,slots:2,castStat:5,prep:2,pool:5,list:['divinesmite','bless','curewounds','shieldoffaith']},
  monster:{name:'Монстр',hitDie:8,prof:2,saves:[],weapons:[],armor:[],shield:false}}; // служебный класс монстров режима «Паника гоблинов» (игроку недоступен)
-const PHYS=['колющий','рубящий','дробящий'],CONCS=['resistance','witchbolt','tasha','bless','shieldoffaith','web','faeriefire','enfeeblement','holdperson','gustofwind','flamingsphere']; // физический урон (сопротивление Ярости); заклинания на концентрации
+const PHYS=['колющий','рубящий','дробящий'],CONCS=['resistance','witchbolt','tasha','bless','shieldoffaith','web','faeriefire','enfeeblement','holdperson','gustofwind','flamingsphere','dragonsbreath']; // физический урон (сопротивление Ярости); заклинания на концентрации
 // категория доспеха по полю dex: 'full' — лёгкий, число — средний, 0 — тяжёлый. Божественный порядок «Защитник» даёт жрецу воинское оружие и тяжёлые доспехи
 function hasF(p,f){return !!p&&!!p.l4&&p.l4.k==='feat'&&p.l4.f===f} // у существа выбрана черта 4 уровня f
 const armCat=a=>a.dex==='full'?'light':a.dex===0?'heavy':'medium',armOk=(p,a)=>CLASSES[p.cls].armor.includes(armCat(a))||(armCat(a)==='heavy'&&p.order==='protector')||(!!p.larm&&armCat(a)==='light'),shOk=p=>!!CLASSES[p.cls].shield||!!p.larm,wprof=p=>[...CLASSES[p.cls].weapons,...(p.order==='protector'||hasF(p,'wmaster')?['martial']:[])];
@@ -87,6 +89,8 @@ const SPELLS={
  spiritualweapon:{n:'Мистическое оружие (Spiritual Weapon)',l:2,bonus:1,rng:12,desc:'2 круг, воплощение. Жрец. Бонусное действие, 12 кл. (60 фт), без концентрации, до конца паники. В свободной клетке появляется слегка светящийся меч; при создании можно сразу ударить врага в 5 фт от меча. В следующие ходы бонусным действием меч перемещается на 4 кл. (20 фт) и атакует существо в 5 фт от себя: атака заклинанием (мастерство + мод. заклинательной характеристики), 1d8 + мод. заклинательной характеристики силовым полем. Новое сотворение заменяет прежний меч.'},
  holdperson:{n:'Удержание личности (Hold Person)',l:2,rng:12,desc:'2 круг, очарование. Волшебник, жрец. Концентрация, 12 кл. (60 фт). Спасбросок Мудрости; провал — цель парализована: не может двигаться и что-либо делать, атаки по ней идут с преимуществом, спасброски Силы и Ловкости она проваливает автоматически, а попадание с расстояния 5 фт — критическое. В конце своего хода цель повторяет спасбросок и при успехе освобождается.'},
  gustofwind:{n:'Порыв ветра (Gust of Wind)',l:2,desc:'2 круг, воплощение. Волшебник. Концентрация. Линия 60×15 фт (12×3 клетки) от вас в выбранном из 8 направлений. Каждый противник в области делает спасбросок Силы; провал — ветер сносит его на 15 фт (3 клетки) по направлению ветра. Закончил ход в области — повторный спасбросок. Область — труднопроходимая местность (движение ×2).'},
+ mirrorimage:{n:'Отражение (Mirror Image)',l:2,desc:'2 круг, иллюзия. Волшебник. Без концентрации, 10 раундов. Рядом с вами появляются 3 иллюзорных двойника (жетон двоится и мерцает). Существо, атакующее вас (оружием или заклинанием с броском атаки), за каждую живую иллюзию бросает d6: если хотя бы на одном 3+, атака идёт по иллюзии. Если бросок попадает по вашему КД — иллюзия исчезает (урон по иллюзии её развеивает), иначе промах. Иллюзию можно убить только прямой атакой: эффекты по области и заклинания-эффекты (Смех Таши и т. п.) идут прямо по вам.'},
+ dragonsbreath:{n:'Дыхание дракона (Dragon Breath)',l:2,rng:1,desc:'2 круг, преобразование. Волшебник. Касание (1 кл.) другого игрока, концентрация. Пока заклинание действует, этот игрок действием может выдохнуть огонь в конус 15 фт (3 клетки вперёд и по две в стороны на конце, направление — по клику): каждое существо в конусе делает спасбросок Ловкости (СЛ — волшебника), при провале 3d6 огня, при успехе половина. Стены закрывают конус; союзники в «Панике» не затрагиваются.'},
  flamingsphere:{n:'Пламенеющий шар (Flaming Sphere)',l:2,rng:12,desc:'2 круг, вызов. Волшебник. Концентрация, 12 кл. (60 фт). Огненный шар размером в 1 клетку. При появлении все существа в его клетке и в 5 фт от него (3×3) делают спасбросок Телосложения: провал — 2d6 урона огнём, успех — половина. Бонусное действие: переместить шар на 6 кл. (30 фт) — существа в его клетке и в 5 фт от нового места снова делают спасбросок. Существо, закончившее ход в 5 фт от шара, тоже делает спасбросок. Вас шар не обжигает.'},
  // ---- 1 круг (3–4 уровни) ----
  burninghands:{n:'Горящие руки (Burning Hands)',l:1,desc:'1 круг, воплощение. Волшебник, жрец. Конус 15 фт (3 клетки) из ваших рук, направление — по клику (8 направлений). Каждое существо в конусе: спасбросок Ловкости, при провале 3d6 огнём, при успехе половина. Стены закрывают конус; союзники в «Панике» не затрагиваются.'},
@@ -96,7 +100,7 @@ const SPELLS={
  aid:{n:'Помощь (Aid)',l:2,rng:6,heal:0,desc:'2 круг, ограждение. Жрец. До 3 существ в 6 кл. (30 фт): максимум хитов и текущие хиты +5 до следующего долгого отдыха (между стражами). Не складывается само с собой.'},
  mistystep:{n:'Туманный шаг (Misty Step)',l:2,bonus:1,desc:'2 круг, вызов. Бонусное действие: телепортация на 6 кл. (30 фт) в свободную клетку, которую вы видите. Освобождает от хватки и паутины.'}};
 // Заговоры: 0 круг, без ячеек, можно колдовать бесконечно. Атака: d20 + мастерство + Инт; СЛ = 8 + мастерство + Инт
-const SCROLLK=Object.keys(SPELLS).filter(k=>!SPELLS[k].react&&k!=='divinesmite'&&k!=='initiate'&&(SPELLS[k].l||1)===1),SCROLLC=50; // свитки заклинаний 1 круга: любые, по 50 зм (СЛ 13, атака +5, исчезают после применения)
+const SCROLLK=Object.keys(SPELLS).filter(k=>!SPELLS[k].react&&k!=='divinesmite'&&k!=='initiate'&&k!=='curewounds'&&k!=='healingword'&&(SPELLS[k].l||1)===1),SCROLLC=50; // свитки заклинаний 1 круга: любые, по 50 зм (СЛ 13, атака +5, исчезают после применения)
 const CANTRIPS={
  firebolt:{n:'Огненный снаряд',rng:24,die:10,dt:'огнём',atk:1,col:'#ff8a3a',desc:'Дальняя атака заклинанием, 24 кл.: 1d10 огнём.'},
  rayoffrost:{n:'Луч холода',rng:12,die:8,dt:'холодом',atk:1,col:'#bfefff',desc:'Выстрел, 12 кл.: 1d8 холодом; скорость цели −2 кл. до начала вашего следующего хода.'},
@@ -115,7 +119,7 @@ const CANTRIPS={
  resistance:{n:'Сопротивление',rng:1,util:1,col:'#ffd166',desc:'Жрец. Касание (1 кл., можно себя), концентрация: один раз цель добавляет 1d4 к спасброску (бросается автоматически при первом же спасброске), затем заклинание заканчивается.'}};
 // Списки классов для «Посвящённого в магию» (и для волшебника: его заговоры/заклинания — список wizard)
 const MI={
- wizard:{n:'Волшебник',stat:3,cant:['firebolt','rayoffrost','shockinggrasp','acidsplash','chilltouch','swordburst'],spell:['shield','magicmissile','tasha','thunderwave','falselife','curewounds','disguise','witchbolt','chromaticorb','web','scorchingray','wardingbond','arcanevigor','burninghands','charmperson','mistystep','enfeeblement','magicweapon','holdperson','gustofwind','flamingsphere']},
+ wizard:{n:'Волшебник',stat:3,cant:['firebolt','rayoffrost','shockinggrasp','acidsplash','chilltouch','swordburst'],spell:['shield','magicmissile','tasha','thunderwave','falselife','disguise','witchbolt','chromaticorb','web','scorchingray','wardingbond','arcanevigor','burninghands','charmperson','mistystep','enfeeblement','magicweapon','holdperson','gustofwind','flamingsphere','mirrorimage','dragonsbreath']},
  cleric:{n:'Жрец',stat:4,cant:['sacredflame','tollthedead','wordofradiance','sparethedying','resistance'],spell:['guidingbolt','curewounds','healingword','shieldoffaith','bless','command','burninghands','aid','wardingbond','spiritualweapon','holdperson']},
  druid:{n:'Друид',stat:4,cant:['poisonspray','starrywisp','primalsavagery'],spell:['guidingbolt','curewounds','healingword']}};
 // Мастер боевых искусств (воин 3 ур.): манёвры; кость превосходства — к8, 4 штуки, СЛ = 8 + мастерство + мод. Силы или Ловкости (лучший)
@@ -126,7 +130,7 @@ const MAN={
  precision:{n:'Точный удар (Precision Attack)',desc:'Если атака промахнулась и кость (к8) может это исправить — тратится автоматически: результат прибавляется к броску атаки (до броска урона). Критический промах (1) не исправить.'},
  push:{n:'Отталкивающая атака (Pushing Attack)',desc:'При попадании: кость к урону, цель делает спасбросок Силы; провал — отброшена на 3 клетки (15 фт) от вас.'}};
 const ABJ=['shield','wardingbond','arcanevigor']; // заклинания школы ограждения ≤ 2 круга: Ограждение даёт 2 из них бесплатно (не занимают подготовку)
-const XPT=[0,300,900,2700]; // накопленный опыт для следующего уровня: 1→2 — 300, 2→3 — 900, 3→4 — 2700
+const XPT=[0,300,900,2000]; // накопленный опыт для следующего уровня: 1→2 — 300, 2→3 — 900, 3→4 — 2000
 const capOf=o=>(CLASSES[o.cls]&&CLASSES[o.cls].maxLv)||MAXLV; // 4 уровень — у всех классов
 const HEALSP=new Set(Object.keys(SPELLS).filter(k=>SPELLS[k].heal)); // категория «лечащие заклинания» (домен Жизни: Ученик жизни)
 const DOM={life:['bless','curewounds','aid'],light:['burninghands','scorchingray','faeriefire']}; // заклинания домена: готовы всегда, не входят в пул
@@ -187,7 +191,7 @@ function coneCells(p,tx,ty){const[dx,dy]=coneDir(p,tx,ty),out=[];
  return out.filter(c=>c.x>=0&&c.y>=0&&c.x<N&&c.y<N&&!blocked(c.x,c.y)&&!cover(p,c).blk)}
 // Орёл (Путь Дикого сердца): скорость удваивается (+ скорость, как от Рывка, но сам Рывок недоступен), провоцированных атак нет до конца хода
 function eagleGo(p){const add=moveBase(p);if(p.grab||p.web)p.mvSaved=(p.mvSaved||0)+add;else p.mv+=add;p.dis=true;p.eg=true;fx({kind:'ring',x:p.x,y:p.y,color:'#8fd0ff'});log(`🦅 ${p.name}: тотем Орла — скорость удвоена (+${add} кл.), враги не совершают провоцированных атак до конца хода`)}
-const pub=p=>p&&{bld:(p.isMon&&p.kind==='wolf'&&!p.dead&&p.hp>0&&p.hp<p.maxhp/2)?1:0,gust:p.gust?{c:p.gust.cells,dx:p.gust.dx,dy:p.gust.dy}:null,scr:p.scr||[],para:p.para?1:0,enf:p.enf?1:0,mw:p.mw?1:0,spw:p.spw?{x:p.spw.x,y:p.spw.y}:null,sph:p.sph?{x:p.sph.x,y:p.sph.y}:null,wr:(p.web&&p.web.r)?1:0,sc:p.sc,cd:p.cd,cdm:cdMax(p),tt:p.rage?p.totem:null,eg:!!p.eg,sac:sacredOn(p)?1:0,vow:(p.vow&&rnd()<p.vow.until)?p.vow.t:null,fr:abjSrc(p)?(p.abj.stuck?2:1):0,lit:isLit(p)?1:0,chm:charmOn(p)?1:0,gwm:!!p.gwm,fey:p.fey?{used:p.fey.used,ab:p.fey.ab}:null,l4:p.l4,aid:p.aid||0,rgm:rageMax(p),la:!!p.larm,id:p.id,slots2:p.slots2,sx2:p.sx2,sd:p.sd,sdm:p.sdm,man:p.man,arch:p.arch,school:p.school,free:p.free,por:p.por,web:!!p.web,bond:bondOn(p)?1:0,drop:!!(p.dropped||p.disarmed),athl:p.athl,arc:p.arc,lunge:!!p.lunge,xn:XPT[p.level],name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0)+(bondOn(p)?1:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cmd:!!p.cmd,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,grab:!!p.grab,hold:p.holding!=null,level:p.level,sx:p.sx,asg:p.asg,reck:!!p.reck,fs:p.fs,mon:!!p.isMon,xp:p.xp,vote:p.vote,sr:p.sr,rr:p.rr,lvUp:p.lvUp,coins:p.coins,ak:p.atkd,loh:p.loh,lm:p.cls==='paladin'?CLASSES.paladin.pool*p.level:0,sm:!!p.sm,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
+const pub=p=>p&&{late:p.late?{lv:p.late.lv,bud:p.late.bud}:0,away:p.away?1:0,bld:(p.isMon&&p.kind==='wolf'&&!p.dead&&p.hp>0&&p.hp<p.maxhp/2)?1:0,gust:p.gust?{c:p.gust.cells,dx:p.gust.dx,dy:p.gust.dy}:null,scr:p.scr||[],para:p.para?1:0,enf:p.enf?1:0,mw:p.mw?1:0,spw:p.spw?{x:p.spw.x,y:p.spw.y}:null,sph:p.sph?{x:p.sph.x,y:p.sph.y}:null,wr:(p.web&&p.web.r)?1:0,img:p.img||0,db:p.db?1:0,sc:p.sc,cd:p.cd,cdm:cdMax(p),tt:p.rage?p.totem:null,eg:!!p.eg,sac:sacredOn(p)?1:0,vow:(p.vow&&rnd()<p.vow.until)?p.vow.t:null,fr:abjSrc(p)?(p.abj.stuck?2:1):0,lit:isLit(p)?1:0,chm:charmOn(p)?1:0,gwm:!!p.gwm,fey:p.fey?{used:p.fey.used,ab:p.fey.ab}:null,l4:p.l4,aid:p.aid||0,rgm:rageMax(p),la:!!p.larm,id:p.id,slots2:p.slots2,sx2:p.sx2,sd:p.sd,sdm:p.sdm,man:p.man,arch:p.arch,school:p.school,free:p.free,por:p.por,web:!!p.web,bond:bondOn(p)?1:0,drop:!!(p.dropped||p.disarmed),athl:p.athl,arc:p.arc,lunge:!!p.lunge,xn:XPT[p.level],name:p.name,race:p.race,cls:p.cls,thp:p.thp,slots:p.slots,prep:p.prep,prone:p.prone,incap:p.incap,conc:!!p.conc,shielded:p.shielded,react:p.react,down:p.down,stable:p.stable,dsL:p.dsL,dsD:p.dsD,feat:p.feat,kit:p.kit,hd:p.hd,ready:p.ready,color:p.color,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,ac:(p.ac||0)+(p.shielded?5:0)+(bondOn(p)?1:0),mv:p.mv,act:p.act,bonus:p.bonus,sw:p.sw,dodge:p.dodge,dead:p.dead,eq:p.eq,inv:p.inv,st:p.st,init:p.init,style:p.style,cmd:!!p.cmd,cant:cantAll(p),mi:p.mi?{spell:p.mi.spell,used:p.mi.used}:null,lvl:p.lvl,sof:!!(p.sof&&p.sof.length),bless:!!(p.bless&&p.bless.length),order:p.order,gb:!!p.gb,disg:p.disg,sub:p.sub,wb:(p.conc&&p.conc.spell==='witchbolt')?p.conc.target:null,oil:p.oil,rage:p.rage||0,rg:p.rg,grab:!!p.grab,hold:p.holding!=null,level:p.level,sx:p.sx,asg:p.asg,reck:!!p.reck,fs:p.fs,mon:!!p.isMon,xp:p.xp,vote:p.vote,sr:p.sr,rr:p.rr,lvUp:p.lvUp,coins:p.coins,ak:p.atkd,loh:p.loh,lm:p.cls==='paladin'?CLASSES.paladin.pool*p.level:0,sm:!!p.sm,slow:!!(p.slow&&p.slow.length),noheal:!!(p.noheal&&p.noheal.length)};
 const bc=()=>{chkWB();chkGrapple();const m=J({t:'state',phase:g.phase,mode:g.mode,vleft:g.voteEnd?Math.max(0,Math.ceil((g.voteEnd-Date.now())/1000)):0,pn:g.mode==='panic'?{w:g.watch,n:g.panics,c:g.pn,b:g.budget,d:g.diff}:null,cave:g.cave||null,webs:g.webs?[...g.webs.keys()]:[],rwebs:g.webs?[...g.webs].filter(([k,w])=>w.r).map(([k])=>k):[],cal:g.cal?[...g.cal]:[],bb:g.bb?[...g.bb]:[],order:g.order,turn:g.turn,log:g.log.slice(-40),players:players.map(pub),room:{code:RM.code,name:RM.name,max:RM.max,host:RM.host,maxLv:RM.maxLv},pend:g.pend?{kind:g.pend.kind,reactor:g.pend.reactor,mover:g.pend.mover,target:g.pend.target,tot:g.pend.tot,dc:g.pend.dc,c:g.pend.cands,f:g.pend.from}:null,vk:g.vkind});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const fx=o=>{const m=J({t:'fx',...o});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m))};
 const err=(p,m)=>p.ws.send(J({t:'err',m}));
@@ -222,7 +226,7 @@ if(process.env.DEMO_COVER==='1')OBST.push( // демо-расстановка д
  ...[9,10,11,12,13].map(x=>({x,y:13,t:'wall'})),{x:17,y:13,t:'three'},{x:18,y:13,t:'three'},
  {x:10,y:17,t:'half'},{x:11,y:17,t:'half'},{x:12,y:17,t:'half'},{x:16,y:17,t:'wall'},{x:16,y:18,t:'wall'});
 const terrain=new Map(OBST.filter(o=>COVER[o.t]&&Number.isInteger(o.x)&&Number.isInteger(o.y)&&o.x>=0&&o.y>=0&&o.x<N&&o.y<N).map(o=>[o.x*N+o.y,o.t]));
-const terrList=()=>[...terrain].map(([k,t])=>({x:Math.floor(k/N),y:k%N,t}));
+const terrList=()=>[...terrain].map(([k,t])=>g.obst&&g.obst.has(k)?{x:Math.floor(k/N),y:k%N,t,tr:1}:{x:Math.floor(k/N),y:k%N,t});
 const blocked=(x,y)=>terrain.has(x*N+y),blockedFor=(p,x,y)=>{const t=terrain.get(x*N+y);return !!t&&!(t==='gate'&&p.isMon)},fullAt=(x,y)=>{const t=terrain.get(x*N+y);return !!t&&!!COVER[t].full};
 // Линия от клетки a к клетке b (целочисленный обход сетки): {blk:true} — путь закрыт стеной; иначе {ac} — бонус КД от лучшего укрытия на пути.
 // Концевые клетки не учитываются (там стоят существа). Диагональ через угол «щели» между двумя стенами тоже закрыта.
@@ -237,7 +241,8 @@ function setTerrain(x,y,t){if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y
  if(t){if(!COVER[t]||players.some(o=>o&&o.ready&&!o.dead&&o.x===x&&o.y===y))return false;terrain.set(x*N+y,t)}else terrain.delete(x*N+y);
  const m=J({t:'terrain',list:terrList()});players.forEach(p=>p&&p.ws.readyState===1&&p.ws.send(m));return true}
 const alive=()=>players.filter(p=>p&&p.ready&&!p.dead&&!p.down&&!(g.mode==='panic'&&p.isMon)); // в «Панике» считаются только герои
-function startTurn(p){if(p.conc&&p.conc.r0!=null&&(g.round||1)-p.conc.r0>=10)endConc(p,'10 раундов прошло');for(const o of players)if(o){if(o.slow)o.slow=o.slow.filter(i=>i!==p.id);if(o.noheal)o.noheal=o.noheal.filter(i=>i!==p.id);if(o.gb&&o.gb.by===p.id){if(o.gb.n>=1)o.gb=null;else o.gb.n=1}} // эффекты заговоров кончаются с началом хода заклинателя
+function startTurn(p){if(p.img&&(g.round||1)-(p.imgR||0)>=10){p.img=0;log(`🪞 ${p.name}: иллюзии рассеялись (10 раундов)`)}
+ if(p.conc&&p.conc.r0!=null&&(g.round||1)-p.conc.r0>=10)endConc(p,'10 раундов прошло');for(const o of players)if(o){if(o.slow)o.slow=o.slow.filter(i=>i!==p.id);if(o.noheal)o.noheal=o.noheal.filter(i=>i!==p.id);if(o.gb&&o.gb.by===p.id){if(o.gb.n>=1)o.gb=null;else o.gb.n=1}} // эффекты заговоров кончаются с началом хода заклинателя
  if(p.oil>0)p.oil--;p.mv=moveBase(p);if(p.grab||p.web){p.mvSaved=p.mv;p.mv=0}if(p.para)p.mv=0;if(abjStuck(p)){p.mvAbj=p.mv;p.mv=0}else p.mvAbj=null // схвачен / изгнан: скорость 0
  p.act=p.bonus=true;p.lunge=false;p.athl=0;p.atkd=false;p.reck=false;p.surge=false;p.dodge=false;p.react=true;p.dis=false;p.savUsed=false;p.wbOk=true;p.shielded=false;p.lvl=false;p.eg=false;p.fz=false;p.gwm=false;p.gwmU=false;p.smU=false;g.oaFor=null;log(`— Ход: ${p.name} —`)}
 function deathRoll(p){if(p.stable)return;const v=d20(p),bl=blessD(p);
@@ -249,7 +254,7 @@ function next(){if(g.phase!=='battle')return;{const cu=players[g.order[g.turn]];
   for(const o of players)if(o&&o.gb&&o.gb.by===cu.id&&o.gb.n>=1)o.gb=null}} // подсветка снимается в конце следующего хода заклинателя
  if(finished())return endBattle();
  const prevT=g.turn;do{g.turn=(g.turn+1)%g.order.length}while(players[g.order[g.turn]].dead);if(g.turn<=prevT)g.round=(g.round||1)+1; // круг очерёдности завершён — новый раунд
- const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}startTurn(q);if(q.cmd){runCmd(q);return next()}if(q.isMon)schedMon(q)}
+ const q=players[g.order[g.turn]];if(q.down){log(`— Ход: ${q.name} (без сознания) —`);deathRoll(q);return next()}if(q.away&&!q.dead&&!q.isMon){log(`— Ход: ${q.name} (нет на связи) — пропуск —`);setTimeout(()=>{if(g.phase==='battle'&&players[g.order[g.turn]]===q){next();bc()}},700);return}startTurn(q);if(q.cmd){runCmd(q);return next()}if(q.isMon)schedMon(q)}
 // все клетки, до которых цель дойдёт за limit очков движения (те же правила, что у bfs: стены, существа, диагональ мимо двух стен)
 function dijk(p,limit,ok,tx,ty){{const fs=abjSrc(p);if(fs){const o0=ok;ok=(c,n)=>dist(n,fs)>=dist(c,fs)&&(!o0||o0(c,n))}} // «Изгнание врага»: нельзя приближаться к паладину
  const pass=!!RACES[p.race]?.pass,start={x:p.x,y:p.y,d:0,pr:null},best=new Map([[p.x*N+p.y,start]]),bk=[[start]],out=[];
@@ -316,7 +321,7 @@ function endEnf(p){const c=players[p.enf.by];if(c&&c.conc&&c.conc.spell==='enfee
 function chkWB(){for(const c of players){if(!c||!c.conc)continue;if(c.dead||c.down){endConc(c);continue}
  if(c.conc.spell==='shieldoffaith'||c.conc.spell==='holdperson'||c.conc.spell==='enfeeblement'){const t0=players[c.conc.target];if(!t0||t0.dead)endConc(c);continue}if(c.conc.spell!=='witchbolt')continue;
  const t=players[c.conc.target];if(!t||t.dead){log(`Ведьмин снаряд ${c.name} прерван: цель выбыла`);endConc(c)}else if(dist(c,t)>12){log(`Ведьмин снаряд ${c.name} прерван: цель дальше 12 клеток`);endConc(c)}else if(cover(c,t).blk){log(`Ведьмин снаряд ${c.name} прерван: путь закрыт стеной`);endConc(c)}}}
-function endConc(c,why){if(!c.conc)return;const cc=c.conc,t=players[cc.target];if(cc.spell==='web')clearWeb(c.id);if(cc.spell==='gustofwind')c.gust=null;if(cc.spell==='flamingsphere')c.sph=null;if(cc.spell==='faeriefire')for(const o of players)if(o&&o.lit)o.lit=o.lit.filter(i=>i!==c.id);if(t&&t.laugh&&t.laugh.by===c.id){t.laugh=null;t.incap=!!t.para}if(t&&t.para&&cc.spell==='holdperson'&&t.para.by===c.id){t.para=null;t.incap=!!t.laugh}if(t&&t.enf&&cc.spell==='enfeeblement'&&t.enf.by===c.id)t.enf=null;if(t&&t.sof){t.sof=t.sof.filter(i=>i!==c.id);derive(t)}
+function endConc(c,why){if(!c.conc)return;const cc=c.conc,t=players[cc.target];if(cc.spell==='web')clearWeb(c.id);if(cc.spell==='gustofwind')c.gust=null;if(cc.spell==='flamingsphere')c.sph=null;if(cc.spell==='dragonsbreath')for(const o of players)if(o&&o.db&&o.db.by===c.id)o.db=null;if(cc.spell==='faeriefire')for(const o of players)if(o&&o.lit)o.lit=o.lit.filter(i=>i!==c.id);if(t&&t.laugh&&t.laugh.by===c.id){t.laugh=null;t.incap=!!t.para}if(t&&t.para&&cc.spell==='holdperson'&&t.para.by===c.id){t.para=null;t.incap=!!t.laugh}if(t&&t.enf&&cc.spell==='enfeeblement'&&t.enf.by===c.id)t.enf=null;if(t&&t.sof){t.sof=t.sof.filter(i=>i!==c.id);derive(t)}
  if(cc.spell==='bless')for(const i of cc.targets||[]){const o=players[i];if(o&&o.bless)o.bless=o.bless.filter(x=>x!==c.id)}
  if(cc.spell==='resistance'&&t&&t.res)t.res=t.res.filter(x=>x!==c.id);
  c.conc=null;log(`${c.name} теряет концентрацию${why?' ('+why+')':''}`)}
@@ -408,6 +413,14 @@ function dexHalf(t,sv,dmg){if(!sv.ok)return dmg;if(hasF(t,'shieldm')&&t.react&&!
 function inspire(){for(const l of players.slice(0,4)){if(!l||!l.ready||l.dead||!hasF(l,'leader'))continue;
   const n=Math.max(0,(l.level||1)+mod(l.st[l.l4.ab])),rs=g.mode==='panic'?players.slice(0,4).filter(a=>a&&a.ready&&!a.dead):[l];
   rs.forEach(a=>{if((a.thp||0)<n)a.thp=n});log(`✨ ${l.name}: Удалой лидер — ${rs.map(a=>a.name).join(', ')} получают ${n} врем. хитов`)}}
+// ===== ОТРАЖЕНИЕ (Mirror Image) =====
+// за каждую живую иллюзию — d6; хотя бы одно 3+ → атака идёт по иллюзии (бросок против КД мага; попадание развеивает одну иллюзию, урона нет)
+function mirrorRoll(t){if(!t||!(t.img>0))return{div:false,rs:[]};const rs=[];let div=false;for(let k=0;k<t.img;k++){const x=r(6);rs.push(x);if(x>=3)div=true}
+ if(!div)log(`  🪞 ${t.name}: d6 отражений ${rs.join(',')} — иллюзии не отвлекли, атака идёт по магу`);return{div,rs}}
+function mirDo(t,mir,hit,head){if(hit)t.img--;log(`${head} — 🪞 d6 отражений: ${mir.rs.join(',')} → атака по иллюзии: ${hit?`иллюзия рассеялась (осталось ${t.img})`:'промах'}`);if(hit)fx({kind:'ring',x:t.x,y:t.y,color:'#9fd8ff'})}
+const breathCells=(p,tx,ty)=>{const[dx,dy]=coneDir(p,tx,ty);if(dx&&dy)return coneCells(p,tx,ty); // по диагонали — обычный конус
+ const f=dx?[dx,0]:[0,dy],l=dx?[0,1]:[1,0],out=[];for(let k=1;k<=3;k++)out.push({x:p.x+f[0]*k,y:p.y+f[1]*k});for(const q of[-2,-1,1,2])out.push({x:p.x+f[0]*3+l[0]*q,y:p.y+f[1]*3+l[1]*q}); // «Т»: 3 клетки вперёд и по две в стороны на конце
+ return out.filter(c=>c.x>=0&&c.y>=0&&c.x<N&&c.y<N&&!blocked(c.x,c.y)&&!cover(p,c).blk)};
 // ===== ПЛАМЕНЕЮЩИЙ ШАР (волшебник, 2 круг, концентрация) =====
 function withActor(id,f){const a=g.actor;g.actor=id;try{f()}finally{g.actor=a}} // убийство засчитывается заклинателю
 const sphIn=(c,t)=>!!c&&!!c.sph&&c!==t&&c.ready&&!c.dead&&!!t&&t.ready&&!t.dead&&foeOf(c,t)&&dist(c.sph,t)<=1&&!cover(c.sph,t).blk; // в клетке шара или в 5 фт от него
@@ -512,6 +525,7 @@ function resolvePend(yes,opt){if(!g.pend)return;const k=g.pend.kind;if(k==='boun
 function spAtk(p,t,nm,adv0,onHit,ab,pd,onEnd,org){if(pd===undefined){const pr=findProt(p,t);if(pr){askProt(pr,p,t,d=>spAtk(p,t,nm,adv0,onHit,ab,d,onEnd,org));return}}const gb=!!t.gb;if(gb){t.gb=null;log(`  ${t.name}: преимущество от Направляющего снаряда`)}const O=org||p,nr=dist(O,t)<=1,cvS=nr?0:cover(O,t).ac,nd=B(p.enfD)+B(p.slD)+B(t.dodge)+B(pd)+B(t.prone&&!nr)+B(frightOf(p,t)),na=B(t.para)+B(adv0)+B(gb)+B(t.reck)+B(t.web)+B(t.down||(t.prone&&nr))+B(wolfAdv(p,t))+B(vowOn(p,t))+B(isLit(t)),pb=ab===-9?2:CLASSES[p.cls].prof,im=ab===-9?3:mod(p.st[ab==null?sab(p):ab]);const R20=adr(()=>d20(p),na,nd),rr=R20.rr;let a=R20.a;p.enfD=null;
  const bl=blessD(p),eac=acv(t)+cvS,bon=pb+im+bl;let pt='';{const x=portA(p,a,bon,eac,true);if(x!=null){pt=` [🔮 ${a}→${x}]`;a=x}}
  let tot=a+bon,hit=a===20||(a!==1&&tot>=eac),head=`${p.name} → ${t.name} (${nm}): ${a}${sg(im)}+${pb}${bl?'+'+bl+'(благ.)':''}=${tot} vs КД ${eac}${cvS?` (укрытие +${cvS})`:''}${rr}${pt}`;
+ const mir=mirrorRoll(t);if(mir.div){mirDo(t,mir,hit,head);return onEnd&&onEnd()}
  const fin=sh=>{if(sh||!hit){log(head+(sh?' — Щит! промах':' — промах'));return onEnd&&onEnd()}onHit(head,a===20||(!!t.para&&nr))};
  const aft=()=>{if(hit&&a!==20&&!t.shielded&&canShield(t)&&tot<eac+5)return askShield(t,p,fin);fin(false)},fl=hit?findFlare(p,t):null;
  if(fl)return askFlare(fl,p,t,yes=>{if(yes){const a0=a,b2=d20(p);a=Math.min(a,b2);tot=a+bon;hit=a===20||(a!==1&&tot>=eac);head+=` [Вспышка: ${a0}/${b2}→${a}]`}aft()});
@@ -533,10 +547,10 @@ const swingFx=(a,t,id)=>{const sp=SWS[id];if(!sp)return;const L=SWST[id];fx({kin
 function attack(p,t,wh,after,pd,man){p.hitDmg=false;const done=()=>shoveCheck(p,t,i,wh,after),i=wInfo(p,wh);
  if(!t||t.dead||t===p)throw Error('Неверная цель');
  if(charmOn(p)&&p.charm.by===t.id)throw Error('Вы очарованы этим существом и не можете его атаковать');
- const d=dist(p,t);if(i.rng?d>i.rng*4:d>i.reach)throw Error(i.rng?`Цель вне дальности (${i.rng*4} кл.)`:`Цель вне досягаемости (${i.reach} кл.)`);
+ const LR=i.rng?(i.w.f&&i.w.f.lr)||4:0,d=dist(p,t);if(i.rng?d>i.rng*LR:d>i.reach)throw Error(i.rng?`Цель вне дальности (${i.rng*LR} кл.)`:`Цель вне досягаемости (${i.reach} кл.)`);
  const cv=cover(p,t);if(cv.blk)throw Error('Между вами стена: атаковать нельзя');const cvA=i.rng?cv.ac:0; // укрытие +2/+5 КД — только против дальнобойной атаки и только для неё
  if(pd===undefined){const pr=findProt(p,t);if(pr){askProt(pr,p,t,d=>attack(p,t,wh,after,d,man));return}} // реакция «Защита» паладина — до броска
- if(i.rng)fx({kind:'arrow',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},arc:i.w.f.arc?1:0}); // лук — дуга, арбалет — прямо
+ if(i.rng&&i.w.f.gun)fx({kind:'gun',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},w:p.eq[wh]});else if(i.rng)fx({kind:'arrow',from:{x:p.x,y:p.y},to:{x:t.x,y:t.y},arc:i.w.f.arc?1:0}); // лук — дуга, арбалет — прямо, огнестрел — выстрел с дымом
  else swingFx(p,t,p.eq[wh]); // ближний бой — взмах оружия
  const gb=!!t.gb;if(gb){t.gb=null;log(`  ${t.name}: преимущество от Направляющего снаряда`)}
  const pen=i.reach>1&&d===2&&players.some(o=>o&&o!==p&&!o.dead&&dist(o,p)===1); // досягаемое оружие: враг вплотную → помеха по дальним целям
@@ -548,6 +562,7 @@ function attack(p,t,wh,after,pd,man){p.hitDmg=false;const done=()=>shoveCheck(p,
  let total=a+bon,hit=isNat()||(a!==1&&total>=eac),pm='';
  if(man==='precision'&&!hit&&a!==1&&total+8>=eac&&p.sd>0){p.sd--;const q=r(8);total+=q;hit=total>=eac;pm=` [Точный удар +${q}${hit?' → попадание':' — всё равно промах'}; костей превосходства: ${p.sd}]`} // манёвр: кость тратится, только если может превратить промах в попадание
  let head=`${p.name} → ${t.name} (${i.n}): ${a}${sg(i.m)}${pb?'+'+pb:''}${bl?'+'+bl+'(благ.)':''}${ar?'+2(стрельба)':''}${sw?'+'+sw+'(Священное оружие)':''}${mwb?'+1(маг. оружие)':''}=${total} vs КД ${eac}${cvA?` (укрытие +${cvA})`:''}${rr}${pt}${pm}`;
+ const mir=mirrorRoll(t);if(mir.div){if(p.rage&&p.rage<2&&!p.down&&!p.dead)p.rage=2;if(!i.rng&&wh==='main')p.lunge=false;mirDo(t,mir,hit,head);return done()}
  const fin=sh=>{
   if(p.rage&&p.rage<2&&!p.down&&!p.dead){p.rage=2;log(`🔥 ${p.name}: ярость продолжается (была атака)`)} // атака (попала или нет) автоматически продлевает Ярость
   const lg=!!p.lunge&&!i.rng&&wh==='main';if(!i.rng&&wh==='main')p.lunge=false; // «Атака с разбега» — на следующую рукопашную атаку
@@ -580,9 +595,10 @@ function attack(p,t,wh,after,pd,man){p.hitDmg=false;const done=()=>shoveCheck(p,
  if(fl){askFlare(fl,p,t,yes=>{if(yes){const a0=a,b2=d20(p);a=Math.min(a,b2);total=a+bon;hit=isNat()||(a!==1&&total>=eac);head+=` [Вспышка: ${a0}/${b2}→${a}]`}aft()});return}
  aft()}
 // ================= РЕЖИМЫ: «Флет» (обычное поле) и «Паника гоблинов» =================
-const LVXP=300,HELPS=new Set(['healingword','curewounds','shieldoffaith','bless','sparethedying','resistance','wardingbond','arcanevigor','aid','magicweapon']); // заклинания только на союзников
+const LVXP=300,HELPS=new Set(['dragonsbreath','healingword','curewounds','shieldoffaith','bless','sparethedying','resistance','wardingbond','arcanevigor','aid','magicweapon']); // заклинания только на союзников
 const BASE=new Map(terrain); // карта режима «Флет»
 const plist=()=>players.slice(0,4).filter(p=>p&&p.ws.readyState===1);
+const GRACE=+process.env.DND_GRACE||120000,held=p=>!!p&&(p.ws.readyState===1||(!!p.away&&Date.now()-p.away<GRACE)); // игрок на связи или в пределах 2 минут после обрыва (перезагрузка страницы)
 const plural=(n,a,b,c)=>n%10===1&&n%100!==11?a:(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?b:c;
 const cmpA=(a,b)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0};
 // 4 уровень (у всех): повышение характеристик (+2 очка, максимум 20) ИЛИ одна из 4 черт. c.l4 = {k:'asi',a:[6 чисел, сумма 2]} | {k:'feat',f,ab}
@@ -603,7 +619,7 @@ const coreSig=c=>JSON.stringify([c.race,c.cls,c.feat,c.base,c.race==='elf'?[c.su
 function build(p,c,shop){
   const b=c.base;if(!Array.isArray(b)||b.length!==6||b.some(x=>!(x in COST)))throw Error('Неверные характеристики');
   const R=RACES[c.race];if(!R)throw Error('Выберите расу');const cl=CLASSES[c.cls];if(!cl||c.cls==='monster')throw Error('Выберите класс');const F=FEATS[c.feat];if(!F)throw Error('Выберите черту');if(b.some((x,i)=>x<R.start[i]||x>15))throw Error('Характеристика вне диапазона (макс. 15)');
-  const lv=c.level===undefined?1:c.level;if(!Number.isInteger(lv)||lv<1||lv>MAXLV)throw Error(`Уровень: от 1 до ${MAXLV}`);if(lv>capOf(c))throw Error(`${cl.name}: максимальный уровень класса — ${capOf(c)}`);if(!shop&&RM.maxLv&&lv>RM.maxLv)throw Error(`Уровень персонажа (${lv}) выше допустимого в этой комнате (максимум ${RM.maxLv}${g.mode==='panic'?': в «Панике гоблинов» всегда 1 уровень':''})`);
+  const lv=c.level===undefined?1:c.level;if(!Number.isInteger(lv)||lv<1||lv>MAXLV)throw Error(`Уровень: от 1 до ${MAXLV}`);if(lv>capOf(c))throw Error(`${cl.name}: максимальный уровень класса — ${capOf(c)}`);if(!shop&&RM.maxLv&&lv>RM.maxLv&&!(p.late&&lv===p.late.lv))throw Error(`Уровень персонажа (${lv}) выше допустимого в этой комнате (максимум ${RM.maxLv}${g.mode==='panic'?': в «Панике гоблинов» всегда 1 уровень':''})`);
   if(b.reduce((s,x,i)=>s+COST[x]-COST[R.start[i]],0)>27)throw Error('Больше 27 очков');
   if(c.cls==='fighter'&&!STYLES.includes(c.style))throw Error('Выберите боевой стиль');if(c.cls==='paladin'&&lv>=2&&!PSTYLES.includes(c.style))throw Error('Паладин: выберите боевой стиль');
   let esub=null,eab=null,exc=null;if(c.race==='elf'){esub=c.sub;if(!R.subs[esub])throw Error('Выберите подрасу эльфа');
@@ -614,7 +630,7 @@ function build(p,c,shop){
    if(!L.spell.includes(c.mi.spell)||(SPELLS[c.mi.spell].l||1)>1)throw Error('Посвящённый в магию: выберите заклинание 1 круга');mi={cls:c.mi.cls,cant:ct.slice(),spell:c.mi.spell,stat:L.stat,used:false}}
   if(c.cls==='cleric'&&!['protector','thaumaturge'].includes(c.order))throw Error('Жрец: выберите Божественный порядок');
   const l4=parseL4(c,lv,b,F,mi);
-  const inv={};let spent=0;const budget=(shop?SCROLLC*(p.scr||[]).length:0)+(shop?(p.coins||0)+Object.entries(p.inv||{}).reduce((a,[k,n])=>a+(ITEMS[k]?ITEMS[k].c*n:0),0):150); /* между стражами можно перекупать: возврат полной цены */
+  const inv={};let spent=0;const budget=(shop?SCROLLC*(p.scr||[]).length:0)+(shop?(p.coins||0)+Object.entries(p.inv||{}).reduce((a,[k,n])=>a+(ITEMS[k]?ITEMS[k].c*n:0),0):(p.late?p.late.bud:150)); /* между стражами можно перекупать: возврат полной цены */
   for(const k in c.inv||{}){const n=c.inv[k];if(!ITEMS[k]||!Number.isInteger(n)||n<0)throw Error('Неверный инвентарь');if(n){inv[k]=n;spent+=ITEMS[k].c*n}}
   let nscr=[];if(c.scrolls!==undefined&&!(Array.isArray(c.scrolls)&&!c.scrolls.length)){if(!shop||c.cls!=='wizard'||g.mode!=='panic'||g.watch<2)throw Error('Свитки доступны только волшебнику в «Панике гоблинов» со 2-й стражи');if(!Array.isArray(c.scrolls)||c.scrolls.length>40||c.scrolls.some(k=>!SCROLLK.includes(k)))throw Error('Неверный свиток');nscr=c.scrolls.slice().sort();spent+=SCROLLC*nscr.length}
   if(spent>budget)throw Error('Не хватает монет');
@@ -662,7 +678,15 @@ function mkMon(k,id,c,no){const M=MONS[k],hp=M.hp();return{id,isMon:true,team:1,
 function loadTerrain(map){terrain.clear();for(const[k,v]of map)terrain.set(k,v)}
 function mapBc(){const m=J({t:'map',list:terrList(),cave:g.cave||null});for(const p of plist())p.ws.send(m)}
 function banner(o){const m=J({t:'banner',...o});for(const p of plist())p.ws.send(m)}
-function setupCave(){loadTerrain(new Map());const x0=r(N-6)-1;for(let y=0;y<7;y++){terrain.set(x0*N+y,'wall');terrain.set((x0+6)*N+y,'wall');for(let i=1;i<=5;i++)terrain.set((x0+i)*N+y,y<6?'wall':'gate')}g.cave={x:x0+1,y:0,w:5,h:7};mapBc()}
+// Препятствия «Паники гоблинов» (деревья): 35 линий по 3–5 клеток (горизонтально/вертикально, у каждой клетки свой тип укрытия: полное / 3/4 / 1/2) и 10 отдельных деревьев (3/4). Создаются на 1 страже и не меняются до конца игры
+function genObst(){if(process.env.DND_NOOBST){g.obst=new Map();return}let ob=null;for(let tries=0;tries<40;tries++){ob=new Map();const T=['wall','three','half'],free=(x,y)=>x>=0&&y>=9&&x<N&&y<N&&!ob.has(x*N+y);
+  for(let n=0;n<35;n++)for(let t=0;t<80;t++){const len=2+r(3),hor=r(2)===1,x0=r(N)-1,y0=9+r(N-9)-1,cs=[];for(let i=0;i<len;i++)cs.push([x0+(hor?i:0),y0+(hor?0:i)]);if(cs.every(([x,y])=>free(x,y))){cs.forEach(([x,y])=>ob.set(x*N+y,T[r(3)-1]));break}}
+  for(let n=0;n<10;n++)for(let t=0;t<80;t++){const x=r(N)-1,y=9+r(N-9)-1;if(free(x,y)){ob.set(x*N+y,'three');break}}
+  const seen=new Set(),q=[];for(let x=0;x<N;x++)if(!ob.has(x*N+8)){seen.add(x*N+8);q.push([x,8])}
+  while(q.length){const[x,y]=q.pop();for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const a=x+dx,b=y+dy,k=a*N+b;if(a<0||b<8||a>=N||b>=N||seen.has(k)||ob.has(k))continue;seen.add(k);q.push([a,b])}}
+  let fr=0;for(let x=0;x<N;x++)for(let y=9;y<N;y++)if(!ob.has(x*N+y))fr++;let rc=0;for(const k of seen)if(k%N>=9)rc++;if(rc>=fr*.95)break} // карта должна оставаться проходимой
+ g.obst=ob}
+function setupCave(){loadTerrain(new Map(g.obst||[]));const x0=r(N-6)-1;for(let y=0;y<7;y++){terrain.set(x0*N+y,'wall');terrain.set((x0+6)*N+y,'wall');for(let i=1;i<=5;i++)terrain.set((x0+i)*N+y,y<6?'wall':'gate')}g.cave={x:x0+1,y:0,w:5,h:7};mapBc()}
 function placePlayers(){const used=new Set();for(const p of plist()){let x,y,t=0;do{x=1+r(N-4);y=N-9+r(7)-1;t++}while((used.has(x+','+y)||blocked(x,y))&&t<300);used.add(x+','+y);p.x=x;p.y=y}}
 function spawnCells(n){const cv=g.cave,cx=cv.x+2,out=[],taken=c=>players.some(o=>o&&o.ready&&!o.dead&&o.x===c.x&&o.y===c.y)||out.some(o=>o.x===c.x&&o.y===c.y);
  const gate=[];for(let i=0;i<cv.w;i++)gate.push({x:cv.x+i,y:cv.h-1});gate.sort(()=>Math.random()-.5);for(const c of gate)if(out.length<n&&!taken(c))out.push(c);
@@ -686,12 +710,13 @@ function enterCreate(mode){g.mode=mode;g.phase='create';clearTimeout(g.lvT);RM.m
  log(`Создание персонажей · максимальный уровень: ${RM.maxLv}${mode==='panic'?' («Паника гоблинов» — всегда 1 уровень)':''}`);if(plist().every(p=>p.ready))return beginMatch();bc()}
 function beginMatch(){if(g.mode==='flat'){loadTerrain(BASE);g.cave=null;mapBc();return startBattle()}
  for(const p of plist())p.team=0;
- g.watch=1;startWatch()}
+ g.watch=1;genObst();startWatch()}
 // ---------- стражи и паники ----------
-function clearStatus(p){if(p.conc)endConc(p,'конец паники');p.gust=null;p.sph=null;p.laugh=null;p.incap=false;p.para=null;p.enf=null;p.enfD=null;p.mw=null;p.spw=null;p.prone=false;p.cmd=null;p.shielded=false;p.bless=[];p.sof=[];p.res=[];p.oil=0;p.slow=[];p.noheal=[];p.gb=null;p.dodge=false;p.rage=0;p.sm=null;p.surge=false;p.reck=false;p.sacred=null;p.vow=null;p.abj=null;p.lit=null;p.charm=null;p.eg=false;p.fz=false;p.gwm=false;p.gwmU=false;p.mvAbj=null;p.web=null;p.webT=null;p.bond=null;p.bondT=null;p.dropped=false;p.disarmed=false;p.lunge=false;p.athl=0;p.grab=null;p.mvSaved=null;p.thp=0;p.cal=0;p.bbH=0;p.bb=null;p.slD=null;p.smU=false;derive(p)}
-function startWatch(){clearTimeout(g.shopT);rollPortent();g.panics=r(4);g.pn=0;setupCave();placePlayers();const n=g.panics,w=plural(n,'панику','паники','паник');
+function clearStatus(p){if(p.conc)endConc(p,'конец паники');p.gust=null;p.sph=null;p.img=0;p.db=null;p.laugh=null;p.incap=false;p.para=null;p.enf=null;p.enfD=null;p.mw=null;p.spw=null;p.prone=false;p.cmd=null;p.shielded=false;p.bless=[];p.sof=[];p.res=[];p.oil=0;p.slow=[];p.noheal=[];p.gb=null;p.dodge=false;p.rage=0;p.sm=null;p.surge=false;p.reck=false;p.sacred=null;p.vow=null;p.abj=null;p.lit=null;p.charm=null;p.eg=false;p.fz=false;p.gwm=false;p.gwmU=false;p.mvAbj=null;p.web=null;p.webT=null;p.bond=null;p.bondT=null;p.dropped=false;p.disarmed=false;p.lunge=false;p.athl=0;p.grab=null;p.mvSaved=null;p.thp=0;p.cal=0;p.bbH=0;p.bb=null;p.slD=null;p.smU=false;derive(p)}
+function startWatch(){clearTimeout(g.shopT);g.cal=new Set();g.bb=new Set();rollPortent();g.panics=r(4);g.pn=0;setupCave();placePlayers();const n=g.panics,w=plural(n,'панику','паники','паник');
  banner({text:`Продержитесь ${n} ${w}`,sub:`Стража №${g.watch}`});log(`🛡 Стража №${g.watch}: продержитесь ${n} ${w}`);startPanic()}
-function startPanic(){clearTimeout(g.restT);g.pn++;g.webs=new Map();g.cal=new Set();g.bb=new Set();const n=plist().length,budget=n*(g.diff==='normal'?25:50)+(g.watch-1)*50;g.budget=budget; // Хард: игроки×50 + (стража−1)×50; Обычная: игроки×25 + (стража−1)×50
+function startPanic(){clearTimeout(g.restT);g.pn++;g.webs=new Map(); // калтропы и шарики остаются до конца стражи (сбрасываются в startWatch)
+ const n=plist().length,budget=n*(g.diff==='normal'?25:50)+(g.watch-1)*50;g.budget=budget; // Хард: игроки×50 + (стража−1)×50; Обычная: игроки×25 + (стража−1)×50
  for(let i=4;i<players.length;i++)players[i]=null;players.length=4;
  const kinds=pickGroup(budget,POOL()).map(k=>k==='goblin'&&r(2)===1?'gobarcher':k),cells=spawnCells(kinds.length),cnt={},no={};
  kinds.forEach((k,i)=>{no[k]=(no[k]||0)+1;cnt[k]=no[k];players[4+i]=mkMon(k,4+i,cells[i],no[k])});
@@ -718,9 +743,9 @@ function hitDie(p){if(g.phase!=='rest')throw Error('Кости хитов тра
  const cl=CLASSES[p.cls],d=r(cl.hitDie),mm=mod(p.st[2]),h=Math.max(1,d+mm),o=p.hp;p.hd--;p.hp=Math.min(p.maxhp,p.hp+h);
  log(`${p.name} тратит кость хитов (d${cl.hitDie}=${d}${sg(mm)}): +${p.hp-o} хп (костей осталось: ${p.hd})`);bc()}
 function checkRest(){if(g.phase!=='rest')return;if(plist().every(p=>p.dead||p.rr)){clearTimeout(g.restT);startPanic()}else bc()}
-function endWatch(){g.phase='shop';for(let i=0;i<4;i++)if(players[i]&&players[i].ws.readyState!==1)players[i]=null;
+function endWatch(){g.phase='shop';for(let i=0;i<4;i++)if(players[i]&&!held(players[i]))players[i]=null;
  log(`🏁 Стража №${g.watch} пройдена! +50 монет, здоровье и способности восстановлены.`);
- for(const p of plist()){const cl=CLASSES[p.cls];p.dead=false;p.down=false;p.stable=false;p.dsL=p.dsD=0;clearStatus(p);if(p.aid){p.maxhp-=p.aid;p.aid=0}p.hp=p.maxhp;p.coins=(p.coins||0)+50;p.sr=false;
+ for(const p of players.slice(0,4).filter(held)){const cl=CLASSES[p.cls];p.dead=false;p.down=false;p.stable=false;p.dsL=p.dsD=0;clearStatus(p);if(p.aid){p.maxhp-=p.aid;p.aid=0}p.hp=p.maxhp;p.coins=(p.coins||0)+50;p.sr=false;
   p.sw=cl.secondWind||0;p.asg=p.cls==='fighter'&&p.level>=2?1:0;p.fs=p.cls==='paladin'&&p.level>=2?1:0;p.loh=(cl.pool||0)*p.level;p.rg=rageMax(p);p.cd=cdMax(p);p.slots=p.sx||0;p.slots2=p.sx2||0;p.sd=p.sdm||0;p.arc=false;p.hd=p.level;if(p.mi)p.mi.used=false;if(p.fey)p.fey.used=false;p.kit=(p.inv.kit||0)*ITEMS.kit.uses;
   p.lvUp=p.level<capOf(p)&&(p.xp||0)>=XPT[p.level];if(p.lvUp)log(`⭐ ${p.name} набрал ${p.xp} XP — может улучшиться до ${p.level+1} уровня!`)}
  inspire();g.watch++;g.order=plist().map(p=>p.id);g.turn=0;banner({text:'Стража пройдена!',sub:`+50 монет · магазин · дальше стража №${g.watch}`,good:1});
@@ -854,6 +879,7 @@ function monAttack(m,t,end,W){const M=MONS[m.kind];if(charmOn(m)&&m.charm.by===t
  const R20=adr(()=>r(20),na,nd);let a=R20.a,rr=R20.rr;m.enfD=null;{const pr=portDef(m,t,a,W?W.hit:M.hit,acv(t)+cv.ac);if(pr){a=pr.a;rr+=pr.txt}}
  let HIT=W?W.hit:M.hit,total=a+HIT,eac=acv(t)+cv.ac,hit=a===20||(a!==1&&total>=eac),head=`${m.name} → ${t.name}${W&&W.label?' ('+W.label+')':rw?' (лук)':''}: ${a}+${HIT}=${total} vs КД ${eac}${cv.ac?` (укрытие +${cv.ac})`:''}${rr}${pack?' [тактика стаи]':''}`;
  if(W&&W.fx==='hammer')fx({kind:'hammer',from:{x:m.x,y:m.y},to:{x:t.x,y:t.y}});else if(rw)fx({kind:'arrow',from:{x:m.x,y:m.y},to:{x:t.x,y:t.y},arc:1,jav:W&&W.fx==='jav'?1:0});else if(M.sw)swingFx(m,t,M.sw);else fx({kind:'ring',x:t.x,y:t.y,color:'#e55'}); // лук — стрела по дуге
+ const mir=mirrorRoll(t);if(mir.div){mirDo(t,mir,hit,head);return end()}
  const fin=sh=>{if(sh||!hit){log(head+(sh?' — Щит! промах':' — промах'));return end()}
   const crit=a===20||(!!t.para&&dd<=1),[n,sd,md]=W?W.dice:(m.disarmed?[0,0,1]:M.dice);let dm=md,ex=0;for(let i=0;i<n*(crit?2:1);i++)dm+=r(sd);
   if(M.adv&&adv){for(let i=0;i<M.adv[0];i++)ex+=r(M.adv[1]);dm+=ex} // гоблин: при преимуществе +1d4
@@ -869,6 +895,7 @@ function monAttack(m,t,end,W){const M=MONS[m.kind];if(charmOn(m)&&m.charm.by===t
 function handle(p,m){g.actor=p.id;
  if(m.t==='start'){if(p.id!==RM.host)throw Error('Начать игру может только хост комнаты');if(g.phase!=='lobby')return;startVote();return}
  if(m.t==='maxlv'){if(p.id!==RM.host)throw Error('Максимальный уровень задаёт только хост');if(g.phase!=='setlv')return;const v=m.v;if(!Number.isInteger(v)||v<1||v>MAXLV)throw Error(`Уровень: от 1 до ${MAXLV}`);RM.maxLv=v;enterCreate('flat');return}
+ if(m.t==='ready'&&p.late&&!p.ready)return lateReady(p,m.c||{});
  if(m.t==='ready'){if(g.phase!=='create'||p.ready)return;build(p,m.c||{},false);p.xp=0;p.ready=true;
   if(plist().every(x=>x.ready))beginMatch();return bc()}
  if(m.t==='vote'){if(g.phase!=='vote'||!(g.vkind==='diff'?['hard','normal']:['flat','panic']).includes(m.mode))return;if(m.mode==='flat'&&plist().length<2)throw Error('«Флет» — минимум 2 игрока в комнате');g.votes[p.id]=m.mode;p.vote=m.mode;if(plist().every(x=>x.vote))resolveVote();else bc();return}
@@ -883,7 +910,7 @@ function handle(p,m){g.actor=p.id;
  if(p.sm&&!(m.t==='cast'&&m.spell==='divinesmite'))p.sm=null; // окно Божественной кары — только сразу после попадания
  if(g.phase!=='battle'||players[g.order[g.turn]]!==p)throw Error('Не ваш ход');
  const need=(k)=>{if(!p[k])throw Error(k==='act'?'Действие уже потрачено':'Бонусное действие потрачено')};
-if(p.incap&&['attack','dash','disengage','dodge','secondwind','potion','cast','medic','stabilize','equip','throw','wbzap','rage','rageext','layonhands','actionsurge','escape','eagle','sacred','vow','vowmove','abjure','preserve','radiance','gwmatk','spwatk','sphmove','hazard'].includes(m.t))throw Error('Вы недееспособны');
+if(p.incap&&['attack','dash','disengage','dodge','secondwind','potion','cast','medic','stabilize','equip','throw','wbzap','rage','rageext','layonhands','actionsurge','escape','eagle','sacred','vow','vowmove','abjure','preserve','radiance','gwmatk','spwatk','sphmove','breathe','hazard'].includes(m.t))throw Error('Вы недееспособны');
  if(g.mode==='panic'){const ids=[m.target,...(Array.isArray(m.targets)?m.targets:[])].filter(Number.isInteger);
   if(ids.length){const help=['layonhands','medic','stabilize'].includes(m.t)||(m.t==='cast'&&HELPS.has(m.spell)),host=['attack','throw','vow','vowmove','abjure','gwmatk','spwatk'].includes(m.t)||(m.t==='cast'&&!HELPS.has(m.spell));
    for(const id of ids){const t=players[id];if(!t)continue;if(host&&t.team===p.team)throw Error('Нельзя применять это против союзника');if(help&&t.team!==p.team)throw Error('Это применяется только на союзников')}}}
@@ -1070,6 +1097,9 @@ case'escape':{need('act');if(!p.grab&&!p.web)throw Error('Вы не схваче
    if(dist(p,c0)>12)throw Error('Точка вне дальности (12 кл.)');if(blocked(x,y)||cover(p,c0).blk)throw Error('Точка за стеной или в препятствии');
    use();if(p.conc)endConc(p,'новая концентрация');p.conc={spell:'faeriefire',target:p.id,r0:rnd()};fx({kind:'faerie',x:x-2,y:y-2,w:4,h:4});log(`${p.name} — Огонь фей: куб 4×4 клетки (концентрация до 10 раундов)`);
    for(const t of players)if(t&&t.ready&&!t.dead&&t!==p&&t.x>=x-2&&t.x<=x+1&&t.y>=y-2&&t.y<=y+1&&!(g.mode==='panic'&&t.team===p.team)){const sv=save(t,1,dc);log(`  ${t.name}: Ловкость ${sv.txt} — ${sv.ok?'успех':'провал: светится, атаки по нему с преимуществом'}`);if(!sv.ok)(t.lit=t.lit||[]).push(p.id)}break}
+  if(k==='mirrorimage'){use();p.img=3;p.imgR=g.round||1;fx({kind:'ring',x:p.x,y:p.y,color:'#9fd8ff'});log(`${p.name} — Отражение: 3 иллюзорных двойника (10 раундов)`);break}
+  if(k==='dragonsbreath'){const t=tgt(1);if(g.mode==='panic'&&t.isMon)throw Error('Касаться нужно союзника');use();if(p.conc)endConc(p,'новая концентрация');for(const o of players)if(o&&o.db&&o.db.by===p.id)o.db=null;t.db={by:p.id,dc};p.conc={spell:'dragonsbreath',target:t.id,r0:rnd()};
+   fx({kind:'ring',x:t.x,y:t.y,color:'#ff8a3a'});log(`${p.name} — Дыхание дракона: ${t.name} может выдыхать огонь (конус 15 фт, действие, СЛ ${dc}, 3d6 огнём; концентрация)`);break}
   if(k==='flamingsphere'){const x=m.x,y=m.y;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Выберите клетку для шара');const c0={x,y};
    if(dist(p,c0)>12)throw Error('Клетка вне дальности (12 кл. = 60 фт)');if(blocked(x,y)||cover(p,c0).blk)throw Error('Клетка занята стеной или не видна');
    use();if(p.conc)endConc(p,'новая концентрация');p.sph={x,y,dc};p.conc={spell:'flamingsphere',target:p.id,r0:rnd()};
@@ -1116,6 +1146,10 @@ case'escape':{need('act');if(!p.grab&&!p.web)throw Error('Вы не схваче
   if(k==='shieldoffaith'){const t=tgt(12,true);use();if(p.conc)endConc(p);(t.sof=t.sof||[]).push(p.id);p.conc={spell:'shieldoffaith',target:t.id};derive(t);
    fx({kind:'ring',x:t.x,y:t.y,color:'#ffd166'});log(`${p.name} — Щит веры на ${t.name}: +2 КД (концентрация)`);break}
   break}
+ case'breathe':{need('act');if(!p.db)throw Error('У вас нет Дыхания дракона');const cr=players[p.db.by];if(!cr||cr.dead||!cr.conc||cr.conc.spell!=='dragonsbreath'){p.db=null;throw Error('Заклинание уже закончилось')}
+  const tx=m.x,ty=m.y;if(!Number.isInteger(tx)||!Number.isInteger(ty)||(tx===p.x&&ty===p.y))throw Error('Выберите направление конуса (клик по клетке в нужную сторону)');
+  const cells=breathCells(p,tx,ty),dc=p.db.dc,dmg=r(6)+r(6)+r(6);p.act=false;fx({kind:'cone',x:p.x,y:p.y,cells:cells.map(c=>[c.x,c.y]),color:'#ff7a2a'});log(`${p.name} — Дыхание дракона: конус 15 фт, 3d6=${dmg} огнём (СЛ ${dc})`);
+  players.filter(t=>t&&t.ready&&!t.dead&&t!==p&&cells.some(c=>c.x===t.x&&c.y===t.y)&&!(g.mode==='panic'&&t.team===p.team)).forEach(t=>{const sv=save(t,1,dc,false,cvSave(p,t)),d=dexHalf(t,sv,dmg);log(`  ${t.name}: Ловкость ${sv.txt} — ${sv.ok?'успех, половина':'провал'}: ${d} огнём`);hurt(t,d,'огнём')});if(finished())next();break}
  case'sphmove':{need('bonus');if(!p.sph||!p.conc||p.conc.spell!=='flamingsphere')throw Error('Пламенеющего шара нет');const x=m.x,y=m.y,o=p.sph;
   if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=N||y>=N)throw Error('Неверная клетка');if(x===o.x&&y===o.y)throw Error('Выберите новую клетку для шара');
   if(dist(o,{x,y})>6)throw Error('Шар перемещается не дальше чем на 6 клеток (30 фт)');if(blocked(x,y)||cover(o,{x,y}).blk)throw Error('Шар не может пройти сквозь стену');
@@ -1138,13 +1172,38 @@ case'escape':{need('act');if(!p.grab&&!p.web)throw Error('Вы не схваче
 const DEAD={readyState:3,send(){},close(){}};
 function fixHost(){if(!players[RM.host]||players[RM.host].ws.readyState!==1){const i=players.slice(0,4).findIndex(x=>x&&x.ws.readyState===1);if(i>=0)RM.host=i}}
 function addPlayer(ws,nick){const id=[0,1,2,3].slice(0,RM.max).find(i=>!players[i]);if(id==null)return null;const nk=clean(nick,16)||('Игрок'+(id+1));
- const p=players[id]={id,ws,last:Date.now(),ready:false,nick:nk,name:nk,color:`hsl(${id*90+r(40)} 70% 50%)`};fixHost();if(RM.host==null||!players[RM.host])RM.host=id;return p}
-function dispose(){for(const k of ['voteT','restT','shopT','monT','lvT'])clearTimeout(g[k]);if(g.pend)clearTimeout(g.pend.timer);for(const m of players)if(m&&m.wd)clearTimeout(m.wd);g.phase='dead';if(RM.onDestroy)RM.onDestroy()}
-function leave(p){const id=p.id;if(players[id]!==p||g.phase==='dead')return;p.ws=DEAD;const pre=['lobby','vote','setlv','create'].includes(g.phase);
- if(pre)players[id]=null;
- else if(!p.dead){p.dead=true;p.hp=0;log(`${p.name} отключился`);if(g.pend&&(g.pend.mover===p.id||g.pend.reactor===p.id))resolvePend(false);if(finished()||players[g.order[g.turn]]===p)next()}
- if(!plist().length)return dispose();
+ const p=players[id]={id,ws,last:Date.now(),ready:false,nick:nk,name:nk,tok:require('crypto').randomBytes(12).toString('hex'),color:`hsl(${id*90+r(40)} 70% 50%)`};fixHost();if(RM.host==null||!players[RM.host])RM.host=id;return p}
+function dispose(){for(const k of ['voteT','restT','shopT','monT','lvT'])clearTimeout(g[k]);if(g.pend)clearTimeout(g.pend.timer);for(const m of players)if(m){clearTimeout(m.wd);clearTimeout(m.gt)}g.phase='dead';if(RM.onDestroy)RM.onDestroy()}
+// soft=true — обрыв связи (в т.ч. перезагрузка страницы): слот и токен держатся GRACE мс, вернувшийся игрок — наблюдатель до следующей стражи
+function leave(p,soft){const id=p.id;if(players[id]!==p||g.phase==='dead')return;p.ws=DEAD;const pre=['lobby','vote','setlv','create'].includes(g.phase);
+ if(soft&&!p.away){p.away=Date.now();p.wasHost=RM.host===id;clearTimeout(p.gt);p.gt=setTimeout(()=>{if(players[id]===p&&p.away)leave(p,false)},GRACE)}else if(!soft){p.away=0;clearTimeout(p.gt)}
+ if(pre&&!p.away)players[id]=null;
+ // при обрыве связи игрок «умирает» (наблюдатель), кроме последнего живого — тот ждёт возврата, его ходы пропускаются
+ else if(!p.dead&&!(p.away&&(g.phase==='shop'||!players.some(o=>o&&o!==p&&o.ready&&!o.dead&&o.ws.readyState===1)))){p.dead=true;p.hp=0;log(`${p.name} отключился`);if(g.pend&&(g.pend.mover===p.id||g.pend.reactor===p.id))resolvePend(false);if(finished()||players[g.order[g.turn]]===p)next()}
+ if(!plist().length){if(p.away||players.slice(0,4).some(o=>o&&o!==p&&o.away&&held(o)))return;return dispose()}
  fixHost();if(g.phase!=='lobby')afterLeave();bc()}
+
+// ---------- возврат по токену и поздний вход ----------
+const PRE_PH=['lobby','vote','setlv','create'];
+function resume(p,ws){const id=p.id;if(players[id]!==p||g.phase==='dead')throw Error('Комната закрыта');
+ if(p.ws.readyState!==1&&!(p.away&&Date.now()-p.away<GRACE))throw Error('Время возврата истекло');
+ if(!p.ready&&!p.late&&!PRE_PH.includes(g.phase)){clearTimeout(p.gt);players[id]=null;throw Error('Игра началась без вас — можно попроситься к хосту')}
+ clearTimeout(p.gt);const was=p.away;p.away=0;p.ws=ws;p.last=Date.now();if(was&&p.wasHost)RM.host=id;p.wasHost=false;
+ if(g.phase==='battle'&&p.ready&&!p.dead&&!g.order.includes(id)){p.dead=true;p.hp=0}
+ log(`🔌 ${p.name} вернулся в игру${p.dead&&!PRE_PH.includes(g.phase)?' (наблюдатель до следующей стражи)':''}`);fixHost();return p}
+// уровень новичка = сумма уровней всех игроков / их число; дробная часть от 0.65 округляется вверх (5/3≈1.67 → 2)
+function lateLv(){const ps=players.slice(0,4).filter(o=>o&&o.ready&&held(o));if(!ps.length)return 1;const avg=ps.reduce((s,o)=>s+(o.level||1),0)/ps.length;return Math.max(1,Math.min(MAXLV,g.mode==='panic'?MAXLV:(RM.maxLv||MAXLV),Math.floor(avg+0.35)))}
+const lateSlot=()=>[0,1,2,3].slice(0,RM.max).find(i=>!players[i]||(players[i].ws.readyState!==1&&!held(players[i])));
+const lateOk=()=>['battle','rest','shop'].includes(g.phase)&&lateSlot()!=null&&g.phase!=='dead';
+function lateJoin(ws,nick){const id=lateSlot();if(id==null||!['battle','rest','shop'].includes(g.phase))return null;if(players[id])clearTimeout(players[id].gt);const nk=clean(nick,16)||('Игрок'+(id+1));
+ const p=players[id]={id,ws,last:Date.now(),ready:false,nick:nk,name:nk,tok:require('crypto').randomBytes(12).toString('hex'),color:`hsl(${id*90+r(40)} 70% 50%)`,late:{lv:lateLv(),bud:150+(g.mode==='panic'?Math.max(0,(g.watch||1)-1)*50:0)}};fixHost();return p}
+function placeOne(p,field){const used=new Set(players.filter(o=>o&&o!==p&&o.ready&&!o.dead).map(o=>o.x+','+o.y));let x,y,t=0;do{if(field){x=7+r(16);y=7+r(16)}else{x=1+r(N-4);y=N-9+r(7)-1}t++}while((used.has(x+','+y)||blocked(x,y))&&t<300);p.x=x;p.y=y}
+function lateReady(p,c){if(!['battle','rest','shop'].includes(g.phase))throw Error('Сейчас создать персонажа нельзя');const L=p.late;
+ build(p,Object.assign({},c,{level:L.lv}),false);p.xp=XPT[L.lv-1]||0;p.ready=true;p.late=null;p.sr=true;p.rr=true;p.react=true;p.down=false;p.dead=false;p.lvUp=false;
+ if(g.phase==='battle'&&g.mode==='panic'){p.dead=true;p.hp=0;placeOne(p,false);log(`➕ ${p.name} (ур. ${p.level}) присоединяется как наблюдатель — вступит в бой со следующей стражи`)}
+ else if(g.phase==='battle'){placeOne(p,true);p.init=d20(p)+mod(p.st[1])+(p.initBonus||0);if(!g.order.includes(p.id))g.order.push(p.id);log(`➕ ${p.name} (ур. ${p.level}) вступает в бой`)}
+ else{placeOne(p,false);log(`➕ ${p.name} (ур. ${p.level}) присоединяется к отряду`)}
+ bc()}
 function tick(){if(g.phase==='dead')return;const now=Date.now();
  if(g.phase==='battle'){const cur=players[g.order[g.turn]];let ch=false;
   for(const p of players)if(p&&!p.dead&&p.ready&&now-p.last>IDLE){p.dead=true;p.hp=0;ch=true;log(`${p.name} бездействует 5 мин — выбывает`);try{p.ws.close()}catch{}}
@@ -1152,24 +1211,57 @@ function tick(){if(g.phase==='dead')return;const now=Date.now();
   if(g.phase==='battle'&&(finished()||(cur&&cur.dead))){next();ch=true}if(ch)bc()} // рассылка только если что-то изменилось
  else if(g.phase!=='over')for(const p of plist())if(now-p.last>IDLE*3){try{p.ws.close()}catch{}} // зал ожидания/создание: отключаем тех, кто молчит 15 мин
 }
-return{R:RM,players,get g(){return g},handle,bc,mapBc,tick,leave,addPlayer,dispose,count:()=>plist().length,terrList};
+return{R:RM,players,get g(){return g},handle,bc,mapBc,tick,leave,addPlayer,dispose,resume,lateJoin,lateOk,lateLv,count:()=>plist().length,occ:()=>players.slice(0,RM.max).filter(Boolean).length,terrList};
 }
 // ---------- HTTP + WS: комнаты ----------
 const J=JSON.stringify;
 const rooms=new Map(),conns=new Set(),CODEABC='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 if(process.env.DND_TEST)global.__rooms=rooms; // для автотестов
 const mkCode=()=>{let c;do{c=Array.from({length:4},()=>CODEABC[Math.floor(Math.random()*CODEABC.length)]).join('')}while(rooms.has(c));return c};
-const roomsList=()=>[...rooms.values()].map(G=>({code:G.R.code,name:G.R.name,n:G.count(),max:G.R.max,phase:G.g.phase,host:(G.players[G.R.host]||{}).name||'—'}));
+const PRE_P=['lobby','vote','setlv','create'];
+const roomsList=()=>[...rooms.values()].map(G=>({code:G.R.code,name:G.R.name,n:PRE_P.includes(G.g.phase)?G.occ():G.count(),max:G.R.max,phase:G.g.phase,mode:G.g.mode||null,watch:G.g.mode==='panic'?G.g.watch:0,late:G.lateOk()?1:0,host:(G.players[G.R.host]||{}).name||'—'}));
 const pushRooms=()=>{const m=J({t:'rooms',list:roomsList()});for(const c of conns)if(!c.G&&c.ws.readyState===1)c.ws.send(m)};
-function joinRoom(c,G,nick){const p=G.addPlayer(c.ws,nick);if(!p)return c.ws.send(J({t:'err',m:'Комната заполнена'}));
- c.p=p;c.G=G;c.ws.send(J({t:'joined',id:p.id,code:G.R.code,nick:p.nick}));G.mapBc();G.bc();pushRooms()}
-function leaveRoom(c,notify){const G=c.G,p=c.p;c.G=null;c.p=null;if(G&&p)G.leave(p);if(notify&&c.ws.readyState===1){c.ws.send(J({t:'left'}));c.ws.send(J({t:'rooms',list:roomsList()}))}pushRooms()}
+function joinRoom(c,G,nick,late){const p=late?G.lateJoin(c.ws,nick):G.addPlayer(c.ws,nick);if(!p)return c.ws.send(J({t:'err',m:'Комната заполнена'}));
+ c.p=p;c.G=G;c.ws.send(J({t:'joined',id:p.id,code:G.R.code,nick:p.nick,tok:p.tok}));G.mapBc();G.bc();pushRooms()}
+function leaveRoom(c,notify,soft){const G=c.G,p=c.p;c.G=null;c.p=null;if(G&&p)G.leave(p,!!soft);if(notify&&c.ws.readyState===1){c.ws.send(J({t:'left'}));c.ws.send(J({t:'rooms',list:roomsList()}))}pushRooms()}
+// ---------- запросы на вход в идущую игру ----------
+// два запроса с интервалом 15 с, затем — только через 5 минут
+const askLim=new Map(),reqs=new Map();if(process.env.DND_TEST)global.__askLim=askLim;
+const ASK_GAP=15000,ASK_BLOCK=300000,ASK_TTL=45000;
+const fmtT=ms=>{const s=Math.ceil(ms/1000);return s>=60?`${Math.floor(s/60)} мин ${s%60} с`:`${s} с`};
+function askLimit(key){const now=Date.now();let e=askLim.get(key)||{n:0,last:0,block:0};
+ if(e.block&&e.block>now)throw Error(`Лимит запросов: следующий запрос можно отправить через ${fmtT(e.block-now)}`);
+ if(e.block&&e.block<=now||now-e.last>ASK_BLOCK)e={n:0,last:0,block:0};
+ if(e.n>=1&&now-e.last<ASK_GAP)throw Error(`Подождите ${fmtT(ASK_GAP-(now-e.last))} до следующего запроса`);
+ e.n++;e.last=now;if(e.n>=2)e.block=now+ASK_BLOCK;askLim.set(key,e)}
+setInterval(()=>{const now=Date.now();for(const[k,e]of askLim)if(now-e.last>ASK_BLOCK*2)askLim.delete(k)},600000);
+function cancelReq(c,msg){const q=c.req&&reqs.get(c.req);if(!q)return;reqs.delete(q.rid);clearTimeout(q.timer);c.req=null;const G=rooms.get(q.code),h=G&&G.players[G.R.host];if(h&&h.ws.readyState===1)h.ws.send(J({t:'joinreq_cancel',rid:q.rid}));if(msg&&c.ws.readyState===1)c.ws.send(J({t:'ask',st:'timeout',m:msg}))}
+function askJoin(c,m){const code=String(m.code||'').trim().toUpperCase(),G=rooms.get(code);if(!G)throw Error('Комната не найдена');const ph=G.g.phase;
+ if(ph==='lobby')throw Error('Комната ещё в ожидании — в неё можно просто войти');if(PRE_P.includes(ph))throw Error('Игра ещё не началась — подождите начала боя');if(ph==='over')throw Error('Игра уже закончилась');
+ if(!G.lateOk())throw Error('В этой комнате нет свободных мест');const host=G.players[G.R.host];if(!host||host.ws.readyState!==1)throw Error('Хоста сейчас нет на связи');
+ if(c.req)throw Error('Ваш предыдущий запрос ещё ждёт ответа хоста');
+ const nick=clean(m.nick,16)||'Игрок';askLimit(c.ip||('c:'+String(m.cid||'').slice(0,40)));
+ const rid=crypto.randomBytes(6).toString('hex'),lv=G.lateLv(),q={rid,code,c,nick,lv,timer:setTimeout(()=>cancelReq(c,'Хост не ответил на запрос'),ASK_TTL)};reqs.set(rid,q);c.req=rid;
+ host.ws.send(J({t:'joinreq',rid,nick,lv}));c.ws.send(J({t:'ask',st:'sent',m:`Запрос отправлен хосту (${esc2(host.name)}). Ждём ответа…`}))}
+const esc2=s=>String(s==null?'':s);
+function answerJoin(c,m){const q=reqs.get(m.rid);if(!q)return;const G=c.G;if(!G||G.R.code!==q.code||!c.p||G.R.host!==c.p.id)return;reqs.delete(q.rid);clearTimeout(q.timer);const rc=q.c;rc.req=null;if(rc.ws.readyState!==1||rc.G)return;
+ if(!m.yes)return rc.ws.send(J({t:'ask',st:'denied',m:`${c.p.name} отклонил ваш запрос`}));
+ if(!G.lateOk())return rc.ws.send(J({t:'ask',st:'denied',m:'Свободных мест уже нет или игра закончилась'}));
+ rc.ws.send(J({t:'ask',st:'accepted',m:`${c.p.name} впустил вас! Создайте персонажа`}));joinRoom(rc,G,q.nick,true)}
+function resumeConn(c,m){const G=rooms.get(String(m.code||'').toUpperCase()),tok=String(m.tok||'');const fail=t=>c.ws.send(J({t:'resumefail',m:t}));
+ if(!G||!tok)return fail('Комната закрыта — игра уже завершилась');const p=G.players.slice(0,4).find(x=>x&&x.tok===tok);if(!p)return fail('Ваше место уже занято или игра закончилась');
+ const old=[...conns].find(o=>o!==c&&o.p===p);
+ try{G.resume(p,c.ws)}catch(e){return fail(e.message)}
+ if(old){old.p=null;old.G=null;try{old.ws.close()}catch{}} // старое (ещё не закрывшееся) соединение отбрасываем
+ c.p=p;c.G=G;c.ws.send(J({t:'joined',id:p.id,code:G.R.code,nick:p.nick,tok:p.tok,back:1}));G.mapBc();G.bc();pushRooms()}
 function onMenu(c,m){
+ if(m.t==='resume')return resumeConn(c,m);
+ if(m.t==='askjoin')return askJoin(c,m);
  if(m.t==='rooms')return c.ws.send(J({t:'rooms',list:roomsList()}));
  if(m.t==='create'){const max=m.max,name=clean(m.name,24);if(!Number.isInteger(max)||max<1||max>4)throw Error('Число игроков: от 1 до 4');
   if(rooms.size>=200)throw Error('Слишком много комнат, попробуйте позже');const code=mkCode(),G=createGame({code,name:name||('Комната '+code),max,host:null,onDestroy:()=>{rooms.delete(code);pushRooms()}});rooms.set(code,G);return joinRoom(c,G,m.nick)}
  if(m.t==='join'){const code=String(m.code||'').trim().toUpperCase(),G=rooms.get(code);if(!G)throw Error('Комната не найдена');
-  if(G.g.phase!=='lobby')throw Error('В этой комнате игра уже идёт');if(G.count()>=G.R.max)throw Error('Комната заполнена');return joinRoom(c,G,m.nick)}}
+  if(G.g.phase!=='lobby')throw Error('В этой комнате игра уже идёт — нажмите «Попроситься»');if(G.occ()>=G.R.max)throw Error('Комната заполнена');return joinRoom(c,G,m.nick)}}
 setInterval(()=>{for(const G of rooms.values())try{G.tick()}catch(e){console.error('tick',e)}},30000);
 // keep-alive: лёгкий ping-кадр; не ответившее соединение закрывается
 setInterval(()=>{for(const c of conns){if(c.ws.readyState!==1)continue;if(c.pong===false){c.ws.terminate();continue}c.pong=false;c.ws.ping()}},25000);
@@ -1183,13 +1275,14 @@ const srv=http.createServer((q,s)=>{
  const gz=/\bgzip\b/.test(q.headers['accept-encoding']||'');
  s.writeHead(200,{'Content-Type':'text/html; charset=utf-8',ETag:TAG,'Cache-Control':'no-cache',Vary:'Accept-Encoding',...(gz?{'Content-Encoding':'gzip'}:{})});s.end(gz?GZ:HTML)});
 const wss=new WebSocketServer({server:srv,maxPayload:65536});
-wss.on('connection',ws=>{
- const c={ws,p:null,G:null,pong:true};conns.add(c);
+wss.on('connection',(ws,req)=>{
+ const c={ws,p:null,G:null,pong:true,req:null,ip:((req&&req.headers&&String(req.headers['x-forwarded-for']||'').split(',')[0].trim())||(req&&req.socket&&req.socket.remoteAddress)||'')};conns.add(c);
  ws.send(J({t:'init',ITEMS,COST,N,SPEED,RACES,FEATS,SPELLS,CANTRIPS,MI,CLASSES:Object.fromEntries(Object.entries(CLASSES).filter(([k])=>k!=='monster')),COVER,CMDS,MAXLV,MAN,ABJ,XPT,SUBC,TOT,FEAT4,DOM,SUBS,SCROLLK,SCROLLC}));ws.send(J({t:'rooms',list:roomsList()}));
- ws.on('close',()=>{conns.delete(c);leaveRoom(c,false)});
+ ws.on('close',()=>{conns.delete(c);cancelReq(c);leaveRoom(c,false,true)});
  ws.on('pong',()=>{c.pong=true});
  ws.on('message',raw=>{let m;try{m=JSON.parse(raw)}catch{return}if(!m||typeof m.t!=='string')return;
   try{if(c.p)c.p.last=Date.now();
    if(m.t==='leave'){if(c.G)leaveRoom(c,true);return}
+   if(m.t==='joinans')return answerJoin(c,m);
    if(c.G&&c.p)c.G.handle(c.p,m);else onMenu(c,m)}catch(e){try{ws.send(J({t:'err',m:e.message}))}catch{}}})});
 srv.listen(process.env.PORT||3000,()=>console.log('http://localhost:3000'));
